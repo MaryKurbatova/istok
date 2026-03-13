@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 3000;
 const db = mysql.createConnection({
     host: 'localhost',
     user: 'root',
-    password: '', // если есть пароль, укажите здесь
+    password: 'root', 
     database: 'istok'
 }).promise();
 
@@ -36,7 +36,7 @@ app.post('/login', async (req, res) => {
     try {
         // Проверяем есть ли пользователь в БД
         const [rows] = await db.query(
-            'SELECT * FROM employees WHERE username = ? AND password = ?',
+            'SELECT * FROM users WHERE username = ? AND password = ?',
             [username, password]
         );
         
