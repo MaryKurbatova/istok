@@ -1,0 +1,1630 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="dashboard.css">
+    <title>Панель управления</title>
+</head>
+<body>
+    <!-- Кнопка переключения темы -->
+    <button class="theme-toggle" onclick="toggleTheme()">
+        <span class="light-icon">☀</span>
+        <span class="dark-icon">☾</span>
+    </button>
+
+    <div class="dashboard-container">
+        <!-- Боковые вкладки -->
+        <div class="sidebar">
+            <button class="sidebar-tab active" onclick="showContent('news')">Новости</button>
+            <button class="sidebar-tab" onclick="showContent('devices')">Устройства</button>
+            <button class="sidebar-tab" onclick="showContent('employees')">Сотрудники</button>
+            <button class="sidebar-tab" onclick="showContent('product-types')">Типы изделий</button>
+            <button class="sidebar-tab" onclick="showContent('components')">Комплектующие</button>
+            <button class="sidebar-tab" onclick="showContent('add-news')">Добавить новость</button>
+            <button class="sidebar-tab" onclick="showContent('production-places')">Места производства</button>
+            <button class="sidebar-tab" onclick="showContent('serial-structure')">Структура серийного номера</button>
+            <button class="sidebar-tab" onclick="showContent('statistic')">Статистика</button>
+            <button class="sidebar-tab" onclick="showContent('about')">О программе</button>
+        </div>
+
+        <!-- Основное содержание -->
+        <div class="main-content">
+            <!-- ВЕРХНЯЯ ПАНЕЛЬ -->
+            <div class="top-panel">
+                <div class="user-info">
+                    <div class="user-name">Иван Иванов</div>
+                    <div class="user-role">Администратор</div>
+                </div>
+                <div class="top-tabs">
+                    <button class="top-tab active" onclick="showTopContent('profile')">Профиль</button>
+                    <button class="top-tab" onclick="showTopContent('settings')">Настройки</button>
+                </div>
+            </div>
+
+            <div class="content-area" id="content-area">
+                <!-- Контент по умолчанию -->
+                <div id="news-content">
+                    <h3>Новости</h3>
+                    <p>Последние новости и обновления системы. Здесь отображаются актуальные события и уведомления.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Сохраняем оригинальные функции
+        window.originalShowContent = window.showContent;
+        window.originalShowTopContent = window.showTopContent;
+
+        // Функция переключения темы
+        function toggleTheme() {
+            const body = document.body;
+            if (body.classList.contains('theme-dark')) {
+                body.classList.remove('theme-dark');
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.classList.add('theme-dark');
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        // Загрузка сохраненной темы
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') {
+                document.body.classList.add('theme-dark');
+            }
+            
+            // Показываем контент по умолчанию
+            showContent('news');
+        });
+
+        // Функция для отображения контента из бокового меню
+        function showContent(contentType) {
+            const contentArea = document.getElementById('content-area');
+            let content = '';
+
+            switch(contentType) {
+                case 'news':
+                    content = `
+                        <div class="news-page">
+    <div class="page-header">
+        <h1>СИСТЕМНЫЕ НОВОСТИ</h1>
+    </div>
+
+    <div class="news-controls">
+        <div class="search-filter-panel">
+            <div class="search-box">
+                <input type="text" placeholder="Поиск по новостям..." id="newsSearch">
+                <button class="search-btn">Найти</button>
+            </div>
+            <div class="filter-group">
+                <select id="categoryFilter">
+                    <option value="">Все категории</option>
+                    <option value="system">Системные</option>
+                    <option value="updates">Обновления</option>
+                    <option value="production">Производство</option>
+                    <option value="maintenance">Обслуживание</option>
+                    <option value="events">События</option>
+                </select>
+                <select id="statusFilter">
+                    <option value="">Все статусы</option>
+                    <option value="active">Активные</option>
+                    <option value="pinned">Закрепленные</option>
+                    <option value="archived">Архив</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="news-container list-view" id="newsContainer">
+        <!-- Закрепленные новости -->
+        <div class="pinned-news">
+            <div class="news-item pinned" data-id="1" data-category="system" data-status="pinned">
+                <div class="news-badge pinned">Закреплено</div>
+                <div class="news-header">
+                    <h3 class="news-title">В системе появился новый тип устройств "СГ-Монитор"</h3>
+                    <div class="news-meta">
+                        <span class="news-date">15.03.2024 09:00</span>
+                        <span class="news-category">Системные</span>
+                    </div>
+                </div>
+                <div class="news-content">
+                    <p>Добавлена поддержка измерительных систем серии SG. Теперь доступны автоматическая генерация серийных номеров, шаблоны конфигураций и расширенная статистика.</p>
+                    <div class="news-preview">
+                        <h4>Новые возможности:</h4>
+                        <ul>
+                            <li>Автоматическая генерация серийных номеров</li>
+                            <li>Шаблоны конфигураций</li>
+                            <li>Расширенная статистика</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="news-footer">
+                    <div class="news-visibility">
+                        <span class="visibility-badge all">Для всех</span>
+                    </div>
+                    <div class="news-actions">
+                        <button class="action-btn edit" onclick="editNews(1)">✎</button>
+                        <button class="action-btn archive" onclick="toggleArchive(1)">📋</button>
+                        <button class="action-btn delete" onclick="deleteNews(1)">✕</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Обычные новости -->
+        <div class="regular-news">
+            <div class="news-item" data-id="2" data-category="updates" data-status="active">
+                <div class="news-header">
+                    <h3 class="news-title">Обновление системы до версии 2.1.0</h3>
+                    <div class="news-meta">
+                        <span class="news-date">10.03.2024 14:30</span>
+                        <span class="news-category">Обновления</span>
+                    </div>
+                </div>
+                <div class="news-content">
+                    <p>Выпущено крупное обновление системы. Основные изменения включают улучшенный интерфейс управления устройствами и новые отчеты.</p>
+                    <div class="news-preview">
+                        <strong>Что нового:</strong>
+                        <ul>
+                            <li>Улучшенный интерфейс управления устройствами</li>
+                            <li>Новые типы отчетов</li>
+                            <li>Оптимизация производительности</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="news-footer">
+                    <div class="news-visibility">
+                        <span class="visibility-badge admins">Для администраторов</span>
+                    </div>
+                    <div class="news-actions">
+                        <button class="action-btn edit" onclick="editNews(2)">✎</button>
+                        <button class="action-btn archive" onclick="toggleArchive(2)">📋</button>
+                        <button class="action-btn delete" onclick="deleteNews(2)">✕</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="news-item" data-id="3" data-category="production" data-status="active">
+                <div class="news-header">
+                    <h3 class="news-title">Запуск новой производственной линии</h3>
+                    <div class="news-meta">
+                        <span class="news-date">05.03.2024 11:00</span>
+                        <span class="news-category">Производство</span>
+                    </div>
+                </div>
+                <div class="news-content">
+                    <p>С сегодняшнего дня начинает работу новая производственная линия для устройств серии RS. Ожидается увеличение производительности на 25%.</p>
+                </div>
+                <div class="news-footer">
+                    <div class="news-visibility">
+                        <span class="visibility-badge all">Для всех</span>
+                    </div>
+                    <div class="news-actions">
+                        <button class="action-btn edit" onclick="editNews(3)">✎</button>
+                        <button class="action-btn archive" onclick="toggleArchive(3)">📋</button>
+                        <button class="action-btn delete" onclick="deleteNews(3)">✕</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="news-item" data-id="4" data-category="maintenance" data-status="active">
+                <div class="news-header">
+                    <h3 class="news-title">Плановые технические работы</h3>
+                    <div class="news-meta">
+                        <span class="news-date">01.03.2024 08:00</span>
+                        <span class="news-category">Обслуживание</span>
+                    </div>
+                </div>
+                <div class="news-content">
+                    <p>15 марта с 23:00 до 02:00 запланированы технические работы. Система может быть временно недоступна.</p>
+                    <div class="news-warning">
+                        Рекомендуем сохранить все изменения до начала работ
+                    </div>
+                </div>
+                <div class="news-footer">
+                    <div class="news-visibility">
+                        <span class="visibility-badge all">Для всех</span>
+                    </div>
+                    <div class="news-actions">
+                        <button class="action-btn edit" onclick="editNews(4)">✎</button>
+                        <button class="action-btn archive" onclick="toggleArchive(4)">📋</button>
+                        <button class="action-btn delete" onclick="deleteNews(4)">✕</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="news-item archived" data-id="5" data-category="events" data-status="archived">
+                <div class="news-badge archived">В архиве</div>
+                <div class="news-header">
+                    <h3 class="news-title">Корпоративное мероприятие</h3>
+                    <div class="news-meta">
+                        <span class="news-date">20.02.2024 10:00</span>
+                        <span class="news-category">События</span>
+                    </div>
+                </div>
+                <div class="news-content">
+                    <p>25 февраля состоится ежегодное корпоративное мероприятие для всех сотрудников отдела производства.</p>
+                </div>
+                <div class="news-footer">
+                    <div class="news-visibility">
+                        <span class="visibility-badge all">Для всех</span>
+                    </div>
+                    <div class="news-actions">
+                        <button class="action-btn edit" onclick="editNews(5)">✎</button>
+                        <button class="action-btn unarchive" onclick="toggleArchive(5)">↩</button>
+                        <button class="action-btn delete" onclick="deleteNews(5)">✕</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="pagination">
+        <button class="page-btn prev">← Назад</button>
+        <div class="page-numbers">
+            <button class="page-btn active">1</button>
+            <button class="page-btn">2</button>
+            <button class="page-btn">3</button>
+        </div>
+        <button class="page-btn next">Вперед →</button>
+    </div>
+</div>
+                    `;
+                    break;
+                case 'statistic':
+                    content = `
+                        <div class="statistics-page">
+    <div class="stats-header">
+        <h1>СТАТИСТИКА СИСТЕМЫ</h1>
+        <div class="period-selector">
+            <select id="statsPeriod">
+                <option value="today">Сегодня</option>
+                <option value="week" selected>Неделя</option>
+                <option value="month">Месяц</option>
+                <option value="quarter">Квартал</option>
+                <option value="year">Год</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="stats-content">
+        <div class="stats-columns">
+            <!-- Левая колонка - Статистика устройств -->
+            <div class="stats-column">
+                <div class="stats-section">
+                    <div class="section-header">
+                        <h2>УСТРОЙСТВА</h2>
+                        <div class="total-count">Всего: 1,247</div>
+                    </div>
+                    
+                    <div class="stats-cards">
+                        <div class="stat-card ready">
+                            <div class="stat-icon">●</div>
+                            <div class="stat-info">
+                                <div class="stat-number">842</div>
+                                <div class="stat-label">Готово</div>
+                                <div class="stat-percentage">67.5%</div>
+                            </div>
+                            <div class="stat-trend up">+12</div>
+                        </div>
+                        
+                        <div class="stat-card in-work">
+                            <div class="stat-icon">○</div>
+                            <div class="stat-info">
+                                <div class="stat-number">185</div>
+                                <div class="stat-label">В работе</div>
+                                <div class="stat-percentage">14.8%</div>
+                            </div>
+                            <div class="stat-trend up">+5</div>
+                        </div>
+                        
+                        <div class="stat-card problems">
+                            <div class="stat-icon">▲</div>
+                            <div class="stat-info">
+                                <div class="stat-number">47</div>
+                                <div class="stat-label">Проблемы</div>
+                                <div class="stat-percentage">3.8%</div>
+                            </div>
+                            <div class="stat-trend down">-3</div>
+                        </div>
+                        
+                        <div class="stat-card warehouse">
+                            <div class="stat-icon">▣</div>
+                            <div class="stat-info">
+                                <div class="stat-number">173</div>
+                                <div class="stat-label">На складе</div>
+                                <div class="stat-percentage">13.9%</div>
+                            </div>
+                            <div class="stat-trend neutral">0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-bars">
+                        <div class="progress-item">
+                            <div class="progress-label">
+                                <span>Готово</span>
+                                <span>67.5%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill ready" style="width: 67.5%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="progress-item">
+                            <div class="progress-label">
+                                <span>В работе</span>
+                                <span>14.8%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill in-work" style="width: 14.8%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="progress-item">
+                            <div class="progress-label">
+                                <span>Проблемы</span>
+                                <span>3.8%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill problems" style="width: 3.8%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="progress-item">
+                            <div class="progress-label">
+                                <span>На складе</span>
+                                <span>13.9%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill warehouse" style="width: 13.9%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Правая колонка - Статистика по типам -->
+            <div class="stats-column">
+                <div class="stats-section">
+                    <div class="section-header">
+                        <h2>ПО ТИПАМ УСТРОЙСТВ</h2>
+                        <div class="total-count">Процент брака</div>
+                    </div>
+                    
+                    <div class="type-stats">
+                        <div class="type-stat-item">
+                            <div class="type-info">
+                                <div class="type-icon">◉</div>
+                                <div class="type-name">RS</div>
+                                <div class="type-count">428 устройств</div>
+                            </div>
+                            <div class="defect-stats">
+                                <div class="defect-percentage bad">5.2%</div>
+                                <div class="defect-label">брака</div>
+                            </div>
+                            <div class="defect-bar">
+                                <div class="defect-fill bad" style="width: 5.2%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="type-stat-item">
+                            <div class="type-info">
+                                <div class="type-icon">◎</div>
+                                <div class="type-name">SA</div>
+                                <div class="type-count">315 устройств</div>
+                            </div>
+                            <div class="defect-stats">
+                                <div class="defect-percentage medium">3.1%</div>
+                                <div class="defect-label">брака</div>
+                            </div>
+                            <div class="defect-bar">
+                                <div class="defect-fill medium" style="width: 3.1%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="type-stat-item">
+                            <div class="type-info">
+                                <div class="type-icon">◌</div>
+                                <div class="type-name">SC</div>
+                                <div class="type-count">278 устройств</div>
+                            </div>
+                            <div class="defect-stats">
+                                <div class="defect-percentage good">1.8%</div>
+                                <div class="defect-label">брака</div>
+                            </div>
+                            <div class="defect-bar">
+                                <div class="defect-fill good" style="width: 1.8%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="type-stat-item">
+                            <div class="type-info">
+                                <div class="type-icon">◈</div>
+                                <div class="type-name">RB</div>
+                                <div class="type-count">156 устройств</div>
+                            </div>
+                            <div class="defect-stats">
+                                <div class="defect-percentage bad">6.7%</div>
+                                <div class="defect-label">брака</div>
+                            </div>
+                            <div class="defect-bar">
+                                <div class="defect-fill bad" style="width: 6.7%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="type-stat-item">
+                            <div class="type-info">
+                                <div class="type-icon">◇</div>
+                                <div class="type-name">SG</div>
+                                <div class="type-count">70 устройств</div>
+                            </div>
+                            <div class="defect-stats">
+                                <div class="defect-percentage good">0.9%</div>
+                                <div class="defect-label">брака</div>
+                            </div>
+                            <div class="defect-bar">
+                                <div class="defect-fill good" style="width: 0.9%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="defect-summary">
+                        <div class="summary-item">
+                            <div class="summary-label">Общий процент брака:</div>
+                            <div class="summary-value">3.4%</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-label">Худший показатель:</div>
+                            <div class="summary-value bad">RB - 6.7%</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-label">Лучший показатель:</div>
+                            <div class="summary-value good">SG - 0.9%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Дополнительная статистика -->
+        <div class="additional-stats">
+            <div class="stats-card large">
+                <div class="card-header">
+                    <h3>ДИНАМИКА ПРОИЗВОДСТВА</h3>
+                </div>
+                <div class="card-content">
+                    <div class="chart-placeholder">
+                        <div class="chart-info">
+                            <div class="chart-title">Выпуск устройств по неделям</div>
+                            <div class="chart-data">
+                                <div class="data-item">
+                                    <span class="data-label">Текущая неделя:</span>
+                                    <span class="data-value">84 устройства</span>
+                                </div>
+                                <div class="data-item">
+                                    <span class="data-label">Прошлая неделя:</span>
+                                    <span class="data-value">76 устройств</span>
+                                </div>
+                                <div class="data-item">
+                                    <span class="data-label">Изменение:</span>
+                                    <span class="data-value positive">+10.5%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+                    `;
+                    break;
+                case 'devices':
+                    content = `
+
+                        <div class="devices-creation">
+    <div class="creation-header">
+        <h1>СИСТЕМА СОЗДАНИЯ УСТРОЙСТВ</h1>
+    </div>
+
+    <div class="creation-content">
+        <!-- Панель поиска и фильтров -->
+        <div class="search-filters-panel">
+            <div class="search-box">
+                <input type="text" placeholder="Поиск устройств и комплектующих..." id="devicesSearch">
+                <button class="search-button">Найти</button>
+            </div>
+            <div class="filters-group">
+                <select id="deviceTypeFilter">
+                    <option value="">Все типы устройств</option>
+                    <option value="rs">RS</option>
+                    <option value="sg">SG</option>
+                    <option value="tm">TM</option>
+                    <option value="mx">MX</option>
+                </select>
+                <select id="statusFilter">
+                    <option value="">Все статусы</option>
+                    <option value="active">Активные</option>
+                    <option value="inactive">Неактивные</option>
+                    <option value="maintenance">На обслуживании</option>
+                </select>
+                <select id="locationFilter">
+                    <option value="">Все местоположения</option>
+                    <option value="warehouse">Склад</option>
+                    <option value="production">Производство</option>
+                    <option value="testing">Тестирование</option>
+                    <option value="shipped">Отгружено</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="creation-sections">
+            <!-- Левая колонка - Создание устройства -->
+            <div class="creation-section">
+                <div class="section-title">
+                    <h3>СОЗДАТЬ УСТРОЙСТВО</h3>
+                </div>
+                <div class="section-content">
+                    <div class="form-group">
+                        <label class="form-label">Тип:</label>
+                        <select id="deviceType" class="form-select">
+                            <option value="rs">RS</option>
+                            <option value="sg">SG</option>
+                            <option value="tm">TM</option>
+                            <option value="mx">MX</option>
+                            <option value="custom">Другой тип</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Конфигурация:</label>
+                        <select id="deviceConfig" class="form-select">
+                            <option value="config1">ISN4150873 +10n</option>
+                            <option value="config2">ISN4150874 +15n</option>
+                            <option value="config3">ISN4150875 +20n</option>
+                            <option value="custom">Новая конфигурация</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Комплектующие:</label>
+                        <div class="components-list">
+                            <div class="component-item selected">
+                                <span class="component-status">✓</span>
+                                <span class="component-name">Плата TIP+TIMR</span>
+                                <button class="remove-btn" onclick="removeComponent('board1')">✕</button>
+                            </div>
+                            <div class="component-item selected">
+                                <span class="component-status">✓</span>
+                                <span class="component-name">Корпус RS</span>
+                                <button class="remove-btn" onclick="removeComponent('case1')">✕</button>
+                            </div>
+                            <div class="component-item missing">
+                                <span class="component-status">✕</span>
+                                <span class="component-name">Блок питания</span>
+                                <button class="add-btn" onclick="addComponent('psu1')">+</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Серийный номер:</label>
+                        <input type="text" id="serialNumber" placeholder="Автогенерация" class="form-input" readonly>
+                    </div>
+                    
+                    <button class="create-button" onclick="createDevice()">
+                        <span class="button-icon">▼</span>
+                        Создать устройство
+                    </button>
+                </div>
+            </div>
+
+            <!-- Правая колонка - Доступные комплектующие -->
+            <div class="components-section">
+                <div class="section-title">
+                    <h3>ДОСТУПНЫЕ КОМПЛЕКТУЮЩИЕ</h3>
+                </div>
+                <div class="section-content">
+                    <div class="components-filter">
+                        <input type="text" placeholder="Поиск комплектующих..." id="componentsSearch" class="filter-input">
+                        <select id="componentsCategory" class="filter-select">
+                            <option value="">Все категории</option>
+                            <option value="boards">Платы</option>
+                            <option value="cases">Корпуса</option>
+                            <option value="power">Блоки питания</option>
+                            <option value="sensors">Датчики</option>
+                            <option value="cables">Кабели</option>
+                        </select>
+                    </div>
+                    
+                    <div class="available-components">
+                        <div class="component-card" data-id="board1" data-category="boards">
+                            <div class="component-header">
+                                <span class="component-status">✓</span>
+                                <span class="component-name">Плата TIP+TIMR</span>
+                            </div>
+                            <div class="component-code">TRVR-469555.02e</div>
+                            <div class="component-stock">
+                                <span class="stock-icon">◉</span>
+                                <span class="stock-info">Склад: 15 шт.</span>
+                            </div>
+                            <button class="select-btn" onclick="selectComponent('board1')">Выбрать</button>
+                        </div>
+                        
+                        <div class="component-card" data-id="case1" data-category="cases">
+                            <div class="component-header">
+                                <span class="component-status">✓</span>
+                                <span class="component-name">Корпус RS</span>
+                            </div>
+                            <div class="component-code">CASE-00123001</div>
+                            <div class="component-stock">
+                                <span class="stock-icon">◉</span>
+                                <span class="stock-info">Склад: 8 шт.</span>
+                            </div>
+                            <button class="select-btn" onclick="selectComponent('case1')">Выбрать</button>
+                        </div>
+                        
+                        <div class="component-card" data-id="psu1" data-category="power">
+                            <div class="component-header">
+                                <span class="component-status">▲</span>
+                                <span class="component-name">Блок питания</span>
+                            </div>
+                            <div class="component-code">PSU-450W-001</div>
+                            <div class="component-stock">
+                                <span class="stock-icon">◉</span>
+                                <span class="stock-info">Склад: 2 шт.</span>
+                            </div>
+                            <button class="select-btn" onclick="selectComponent('psu1')">Выбрать</button>
+                        </div>
+                        
+                        <div class="component-card" data-id="sensor1" data-category="sensors">
+                            <div class="component-header">
+                                <span class="component-status">✓</span>
+                                <span class="component-name">Датчик температуры</span>
+                            </div>
+                            <div class="component-code">TEMP-SENSOR-01</div>
+                            <div class="component-stock">
+                                <span class="stock-icon">◉</span>
+                                <span class="stock-info">Склад: 25 шт.</span>
+                            </div>
+                            <button class="select-btn" onclick="selectComponent('sensor1')">Выбрать</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+                    `;
+                    break;
+                case 'employees':
+                    content = `
+                        <div class="employees-page">
+    <div class="page-header">
+        <h1>УПРАВЛЕНИЕ СОТРУДНИКАМИ</h1>
+    </div>
+    
+    <div class="employees-content">
+        <div class="content-header">
+            <h3>Сотрудники</h3>
+            <button class="add-button" onclick="addEmployee()">+ Добавить сотрудника</button>
+        </div>
+
+        <div class="employees-tools">
+            <div class="search-box">
+                <input type="text" placeholder="Поиск сотрудников..." id="employeeSearch">
+                <button class="search-button">🔍</button>
+            </div>
+            <div class="filter-group">
+                <select id="departmentFilter">
+                    <option value="">Все отделы</option>
+                    <option value="production">Производство</option>
+                    <option value="quality">ОТК</option>
+                    <option value="engineering">Инженерия</option>
+                    <option value="management">Управление</option>
+                </select>
+                <select id="roleFilter">
+                    <option value="">Все роли</option>
+                    <option value="worker">Рабочий</option>
+                    <option value="technician">Техник</option>
+                    <option value="engineer">Инженер</option>
+                    <option value="manager">Менеджер</option>
+                    <option value="admin">Администратор</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="employees-table-container">
+            <table class="employees-table">
+                <thead>
+                    <tr>
+                        <th>ФИО</th>
+                        <th>Должность</th>
+                        <th>Отдел</th>
+                        <th>Статус</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Иванов Алексей Петрович</td>
+                        <td>Сборщик</td>
+                        <td>Производство</td>
+                        <td><span class="status-active">Активен</span></td>
+                        <td>
+                            <button class="action-btn edit" onclick="editEmployee(1)">✎</button>
+                            <button class="action-btn delete" onclick="deleteEmployee(1)">✕</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Петров Сергей Иванович</td>
+                        <td>Сборщик</td>
+                        <td>Производство</td>
+                        <td><span class="status-active">Активен</span></td>
+                        <td>
+                            <button class="action-btn edit" onclick="editEmployee(2)">✎</button>
+                            <button class="action-btn delete" onclick="deleteEmployee(2)">✕</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Сидоров Дмитрий Васильевич</td>
+                        <td>Электрик</td>
+                        <td>ОТК</td>
+                        <td><span class="status-active">Активен</span></td>
+                        <td>
+                            <button class="action-btn edit" onclick="editEmployee(3)">✎</button>
+                            <button class="action-btn delete" onclick="deleteEmployee(3)">✕</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Кузнецов Михаил Александрович</td>
+                        <td>Электрик</td>
+                        <td>ОТК</td>
+                        <td><span class="status-vacation">Отпуск</span></td>
+                        <td>
+                            <button class="action-btn edit" onclick="editEmployee(4)">✎</button>
+                            <button class="action-btn delete" onclick="deleteEmployee(4)">✕</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Смирнова Ольга Викторовна</td>
+                        <td>Инженер ПСИ</td>
+                        <td>Инженерия</td>
+                        <td><span class="status-active">Активен</span></td>
+                        <td>
+                            <button class="action-btn edit" onclick="editEmployee(5)">✎</button>
+                            <button class="action-btn delete" onclick="deleteEmployee(5)">✕</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="pagination">
+            <button class="page-btn prev">← Назад</button>
+            <div class="page-numbers">
+                <button class="page-btn active">1</button>
+                <button class="page-btn">2</button>
+                <button class="page-btn">3</button>
+            </div>
+            <button class="page-btn next">Вперед →</button>
+        </div>
+    </div>
+</div>
+                    `;
+                    
+                    break;
+                case 'product-types':
+                    content = `
+                        <div class="product-type-creation">
+    <div class="creation-header">
+        <h1>СОЗДАНИЕ ТИПА ИЗДЕЛИЯ</h1>
+    </div>
+
+    <div class="creation-content">
+        <div class="section">
+            <div class="section-header">
+                <h3>СИСТЕМНЫЕ ИДЕНТИФИКАТОРЫ:</h3>
+            </div>
+            <div class="form-container">
+                <div class="form-row">
+                    <div class="form-label">
+                        <span class="icon">●</span>
+                        <span class="label-text">Код типа:</span>
+                    </div>
+                    <div class="form-input">
+                        <input type="text" id="typeCode" maxlength="4" placeholder="SG">
+                        <div class="input-hint">(внутренний ID системы)</div>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-label">
+                        <span class="icon">○</span>
+                        <span class="label-text">Префикс:</span>
+                    </div>
+                    <div class="form-input">
+                        <input type="text" id="typePrefix" maxlength="3" placeholder="SG">
+                        <div class="input-hint">(для серийных номеров изделий)</div>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-label">
+                        <span class="icon">◉</span>
+                        <span class="label-text">Название:</span>
+                    </div>
+                    <div class="form-input">
+                        <input type="text" id="typeName" placeholder="СГ-Монитор">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-label">
+                        <span class="icon">◈</span>
+                        <span class="label-text">Категория:</span>
+                    </div>
+                    <div class="form-input">
+                        <select id="typeCategory">
+                            <option value="">Измерительное оборудование</option>
+                            <option value="medical">Медицинское оборудование</option>
+                            <option value="industrial">Промышленное оборудование</option>
+                            <option value="electronic">Электроника</option>
+                            <option value="laboratory">Лабораторное оборудование</option>
+                            <option value="other">Другое</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <h3>ПРАВИЛА ЗАПОЛНЕНИЯ:</h3>
+            </div>
+            <div class="rules-container">
+                <div class="rule-item">
+                    <span class="rule-bullet">•</span>
+                    <span class="rule-text">Код типа: 2-4 символа, ЛАТИНИЦА, уникален</span>
+                </div>
+                <div class="rule-item">
+                    <span class="rule-bullet">•</span>
+                    <span class="rule-text">Префикс: 2-3 символа, обычно совпадает с кодом</span>
+                </div>
+                <div class="rule-item">
+                    <span class="rule-bullet">•</span>
+                    <span class="rule-text">Пример: Код "SG", Префикс "SG" → номер SG24030001</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button class="save-button" onclick="saveProductType()">
+                <span class="button-icon">▼</span>
+                Сохранить тип
+            </button>
+        </div>
+    </div>
+</div>
+                    `;
+                    break;
+                case 'components':
+                    content = `
+                        <div class="component-creation">
+    <div class="creation-header">
+        <h1>ДОБАВЛЕНИЕ НОВОГО КОМПЛЕКТУЮЩЕГО</h1>
+    </div>
+
+    <div class="creation-content">
+        <div class="form-sections">
+            <div class="form-section">
+                <div class="section-title">
+                    <h3>ОСНОВНАЯ ИНФОРМАЦИЯ</h3>
+                </div>
+                <div class="section-content">
+                    <div class="form-group">
+                        <label class="form-label">Название:</label>
+                        <input type="text" id="componentName" placeholder="Плата основная TIP+TIMR" class="form-input">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Код модели:</label>
+                        <input type="text" id="modelCode" placeholder="TRVR-469555.02e" class="form-input">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Производитель:</label>
+                        <select id="manufacturer" class="form-select">
+                            <option value="">АО НПП "Исток"</option>
+                            <option value="other1">ОАО "Электросила"</option>
+                            <option value="other2">ЗАО "Техноприбор"</option>
+                            <option value="other3">ПАО "Радиотехника"</option>
+                            <option value="custom">Другой производитель...</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="section-title">
+                    <h3>СВОЙСТВА И ХАРАКТЕРИСТИКИ</h3>
+                </div>
+                <div class="section-content">
+                    <div class="form-group">
+                        <label class="form-label">Тип:</label>
+                        <select id="componentType" class="form-select">
+                            <option value="">Плата основная</option>
+                            <option value="board">Плата дополнительная</option>
+                            <option value="module">Модуль</option>
+                            <option value="sensor">Датчик</option>
+                            <option value="connector">Разъем</option>
+                            <option value="cable">Кабель</option>
+                            <option value="housing">Корпус</option>
+                            <option value="other">Другое</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Версия:</label>
+                        <input type="text" id="componentVersion" placeholder="1.0" class="form-input">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Серийный номер:</label>
+                        <input type="text" id="serialNumber" placeholder="Автогенерация" class="form-input" disabled>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="additional-section">
+            <div class="section-title">
+                <h3>ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ</h3>
+            </div>
+            <div class="section-content">
+                <div class="form-row">
+                    <div class="form-group half-width">
+                        <label class="form-label">Срок службы (мес.):</label>
+                        <input type="number" id="lifespan" placeholder="36" class="form-input">
+                    </div>
+                    
+                    <div class="form-group half-width">
+                        <label class="form-label">Гарантия (мес.):</label>
+                        <input type="number" id="warranty" placeholder="12" class="form-input">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Описание:</label>
+                    <textarea id="componentDescription" placeholder="Технические характеристики и особенности компонента..." class="form-textarea"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button class="save-button" onclick="saveComponent()">
+                <span class="button-icon">▼</span>
+                Сохранить комплектующее
+            </button>
+        </div>
+    </div>
+</div>
+                    `;
+                    break;
+                case 'add-news':
+                    content = `
+                        <div class="news-creation">
+    <div class="creation-header">
+        <h1>ДОБАВЛЕНИЕ СИСТЕМНОЙ НОВОСТИ</h1>
+    </div>
+
+    <div class="creation-content">
+        <div class="form-section">
+            <div class="form-group">
+                <label class="form-label">Заголовок:</label>
+                <input type="text" id="newsTitle" placeholder='В системе появился новый тип устройств "СГ-Монитор"' class="form-input">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Краткое описание:</label>
+                <textarea id="newsDescription" placeholder="Добавлена поддержка измерительных систем серии SG..." class="form-textarea short"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Содержание:</label>
+                <div class="content-editor">
+                    <div class="editor-toolbar">
+                        <button type="button" class="toolbar-btn" onclick="formatText('bold')"><b>B</b></button>
+                        <button type="button" class="toolbar-btn" onclick="formatText('italic')"><i>I</i></button>
+                        <button type="button" class="toolbar-btn" onclick="formatText('underline')"><u>U</u></button>
+                        <button type="button" class="toolbar-btn" onclick="insertHeading()">H2</button>
+                        <button type="button" class="toolbar-btn" onclick="insertList()">•</button>
+                        <button type="button" class="toolbar-btn" onclick="insertLink()">🔗</button>
+                    </div>
+                    <div id="newsContent" class="editor-content" contenteditable="true">
+&lt;h2&gt;Новые возможности&lt;/h2&gt;
+&lt;p&gt;С сегодняшнего дня в системе доступен новый тип...&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Автоматическая генерация серийных номеров&lt;/li&gt;
+&lt;li&gt;Шаблоны конфигураций&lt;/li&gt;
+&lt;li&gt;Расширенная статистика&lt;/li&gt;
+&lt;/ul&gt;
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <div class="section-header">
+                <h3>НАСТРОЙКИ ПУБЛИКАЦИИ:</h3>
+            </div>
+            <div class="settings-container">
+                <div class="settings-row">
+                    <div class="setting-group">
+                        <label class="setting-label">Видимость:</label>
+                        <select id="newsVisibility" class="form-select">
+                            <option value="all">Все</option>
+                            <option value="admins">Только администраторы</option>
+                            <option value="managers">Менеджеры и выше</option>
+                            <option value="operators">Операторы и выше</option>
+                        </select>
+                    </div>
+                    
+                    <div class="setting-group">
+                        <label class="setting-label">Дата публикации:</label>
+                        <input type="datetime-local" id="publishDate" class="form-input">
+                    </div>
+                    
+                    <div class="setting-group">
+                        <label class="setting-label">Активна до:</label>
+                        <input type="date" id="expireDate" class="form-input">
+                    </div>
+                </div>
+                
+                <div class="settings-row">
+                    <div class="setting-group">
+                        <label class="setting-label">
+                            <input type="checkbox" id="sendNotification" checked>
+                            Отправить уведомление пользователям
+                        </label>
+                    </div>
+                    
+                    <div class="setting-group">
+                        <label class="setting-label">
+                            <input type="checkbox" id="pinNews">
+                            Закрепить новость
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button class="save-button" onclick="publishNews()">
+                <span class="button-icon">▼</span>
+                Опубликовать новость
+            </button>
+        </div>
+    </div>
+</div>
+                    `;
+                    break;
+                case 'production-places':
+                    content = `
+                        <div class="production-place-creation">
+    <div class="creation-header">
+        <h1>ДОБАВЛЕНИЕ МЕСТА ПРОИЗВОДСТВА</h1>
+    </div>
+
+    <div class="creation-content">
+        <div class="section">
+            <div class="section-header">
+                <h3>ОСНОВНАЯ ИНФОРМАЦИЯ:</h3>
+            </div>
+            <div class="form-container">
+                <div class="form-row">
+                    <div class="form-label">
+                        <span class="icon">●</span>
+                        <span class="label-text">Название:</span>
+                    </div>
+                    <div class="form-input">
+                        <input type="text" id="placeName" placeholder="Завод №1">
+                        <div class="input-hint">(официальное название производства)</div>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-label">
+                        <span class="icon">○</span>
+                        <span class="label-text">Код цеха:</span>
+                    </div>
+                    <div class="form-input">
+                        <input type="text" id="workshopCode" maxlength="3" placeholder="001">
+                        <div class="input-hint">(уникальный код 2-3 цифры)</div>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-label">
+                        <span class="icon">◉</span>
+                        <span class="label-text">Адрес:</span>
+                    </div>
+                    <div class="form-input">
+                        <input type="text" id="placeAddress" placeholder="г. Москва, ул. Промышленная, д. 15">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-label">
+                        <span class="icon">◈</span>
+                        <span class="label-text">Ответственный:</span>
+                    </div>
+                    <div class="form-input">
+                        <select id="responsiblePerson">
+                            <option value="">Выберите ответственного</option>
+                            <option value="1">Иванов И.И. - Начальник производства</option>
+                            <option value="2">Петров П.П. - Мастер цеха</option>
+                            <option value="3">Сидоров С.С. - Технолог</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <h3>ТЕХНИЧЕСКИЕ ПАРАМЕТРЫ:</h3>
+            </div>
+            <div class="form-container">
+                <div class="form-row">
+                    <div class="form-label">
+                        <span class="icon">●</span>
+                        <span class="label-text">Тип производства:</span>
+                    </div>
+                    <div class="form-input">
+                        <select id="productionType">
+                            <option value="assembly">Сборочное</option>
+                            <option value="machining">Механообработка</option>
+                            <option value="electronics">Электроника</option>
+                            <option value="testing">Тестирование</option>
+                            <option value="packaging">Упаковка</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-label">
+                        <span class="icon">○</span>
+                        <span class="label-text">Статус:</span>
+                    </div>
+                    <div class="form-input">
+                        <select id="placeStatus">
+                            <option value="active">Активно</option>
+                            <option value="maintenance">На обслуживании</option>
+                            <option value="planned">Планируется запуск</option>
+                            <option value="inactive">Неактивно</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-label">
+                        <span class="icon">◉</span>
+                        <span class="label-text">Контактный телефон:</span>
+                    </div>
+                    <div class="form-input">
+                        <input type="tel" id="contactPhone" placeholder="+7 (999) 123-45-67">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <h3>ПРАВИЛА ЗАПОЛНЕНИЯ:</h3>
+            </div>
+            <div class="rules-container">
+                <div class="rule-item">
+                    <span class="rule-bullet">•</span>
+                    <span class="rule-text">Код цеха: 2-3 цифры, уникален в рамках предприятия</span>
+                </div>
+                <div class="rule-item">
+                    <span class="rule-bullet">•</span>
+                    <span class="rule-text">Название должно отражать фактическое назначение цеха</span>
+                </div>
+                <div class="rule-item">
+                    <span class="rule-bullet">•</span>
+                    <span class="rule-text">Пример: Код "001" → Завод №1, Цех сборки</span>
+                </div>
+                <div class="rule-item">
+                    <span class="rule-bullet">•</span>
+                    <span class="rule-text">Код используется в серийных номерах изделий</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button class="save-button" onclick="saveProductionPlace()">
+                <span class="button-icon">▼</span>
+                Сохранить место производства
+            </button>
+        </div>
+    </div>
+</div>
+                    `;
+                    break;
+                case 'serial-structure':
+                    content = `
+                        <div class="serial-structure">
+                            <div class="header">
+                                <h1>СТРУКТУРА СЕРИЙНЫХ НОМЕРОВ</h1>
+                            </div>
+                            
+                            <div class="content">
+                                <div class="current-format">
+                                    <h3>ТЕКУЩИЙ ФОРМАТ:</h3>
+                                    <div class="format-display">RS 10 10 16 03 0001</div>
+                                </div>
+
+                                <div class="visual-structure">
+                                    <div class="serial-box">
+                                        <div class="segment">RS</div>
+                                        <div class="segment">10</div>
+                                        <div class="segment">10</div>
+                                        <div class="segment">16</div>
+                                        <div class="segment">03</div>
+                                        <div class="segment">0001</div>
+                                    </div>
+
+                                    <div class="segment-labels">
+                                        <div class="label">
+                                            <div class="label-line"></div>
+                                            <div class="label-text">Тип устройства<br>(2 буквы)</div>
+                                        </div>
+                                        <div class="label">
+                                            <div class="label-line"></div>
+                                            <div class="label-text">Тип конфигурации<br>(2 цифры)</div>
+                                        </div>
+                                        <div class="label">
+                                            <div class="label-line"></div>
+                                            <div class="label-text">Код производства<br>(2 цифры)</div>
+                                        </div>
+                                        <div class="label">
+                                            <div class="label-line"></div>
+                                            <div class="label-text">Год выпуска<br>(2 цифры)</div>
+                                        </div>
+                                        <div class="label">
+                                            <div class="label-line"></div>
+                                            <div class="label-text">Месяц выпуска<br>(01-12)</div>
+                                        </div>
+                                        <div class="label">
+                                            <div class="label-line"></div>
+                                            <div class="label-text">Порядковый номер<br>(4 цифры)</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="explanation">
+                                    <h4>Расшифровка структуры:</h4>
+                                    <div class="explanation-grid">
+                                        <div class="explanation-item">
+                                            <span class="segment-name">Тип устройства</span>
+                                            <span class="segment-preview">RS</span>
+                                            <span class="segment-description">2 буквы, обозначающие тип устройства</span>
+                                        </div>
+                                        <div class="explanation-item">
+                                            <span class="segment-name">Тип конфигурации</span>
+                                            <span class="segment-preview">10</span>
+                                            <span class="segment-description">2 цифры, определяющие конфигурацию устройства</span>
+                                        </div>
+                                        <div class="explanation-item">
+                                            <span class="segment-name">Код производства</span>
+                                            <span class="segment-preview">10</span>
+                                            <span class="segment-description">2 цифры, код производственной линии</span>
+                                        </div>
+                                        <div class="explanation-item">
+                                            <span class="segment-name">Год выпуска</span>
+                                            <span class="segment-preview">16</span>
+                                            <span class="segment-description">2 цифры, год выпуска устройства</span>
+                                        </div>
+                                        <div class="explanation-item">
+                                            <span class="segment-name">Месяц выпуска</span>
+                                            <span class="segment-preview">03</span>
+                                            <span class="segment-description">2 цифры, месяц выпуска (01-12)</span>
+                                        </div>
+                                        <div class="explanation-item">
+                                            <span class="segment-name">Порядковый номер</span>
+                                            <span class="segment-preview">0001</span>
+                                            <span class="segment-description">4 цифры, уникальный порядковый номер устройства</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                case 'about':
+                    content = `
+                        <div class="about-page">
+                            <div class="about-header">
+                                <h1>О ПРОГРАММЕ</h1>
+                            </div>
+                            
+                            <div class="about-content">
+                                <div class="about-section">
+                                    <h2>Дипломный проект</h2>
+                                    <div class="about-card">
+                                        <p>Данная информационная система представляет собой дипломный проект, выполненный студенткой группы 405ИС-22 Курбатовой Марией Владимировной.</p>
+                                        <p>Проект посвящен разработке автоматизированной системы управления производственным процессом на предприятии. Система позволяет отслеживать все этапы производства устройств, вести учет комплектующих, управлять персоналом и анализировать производственные показатели.</p>
+                                    </div>
+                                </div>
+
+                                <div class="about-section">
+                                    <h2>О разработчике</h2>
+                                    <div class="about-card developer-card">
+                                        <div class="developer-info">
+                                            <h3>Курбатова Мария Владимировна</h3>
+                                            <p class="developer-role">Студентка группы 405ИС-22</p>
+                                            <p class="developer-description">
+                                                Образование: Среднее профессиональное образование по специальности "Информационные системы и программирование".<br>
+                                                Квалификация: Программист, техник по информационным системам.<br>
+                                                Год окончания: 2026<br>
+                                                Учебное заведение: КМПО РАНХиГС
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="about-section">
+                                    <h2>О проекте</h2>
+                                    <div class="about-grid">
+                                        <div class="about-card">
+                                            <h3>Цель проекта</h3>
+                                            <p>Разработка автоматизированной системы управления производственным процессом для повышения эффективности работы предприятия, оптимизации учета устройств и комплектующих, а также автоматизации документооборота.</p>
+                                        </div>
+                                        <div class="about-card">
+                                            <h3>Задачи проекта</h3>
+                                            <ul>
+                                                <li>Создание единой базы данных устройств и комплектующих</li>
+                                                <li>Автоматизация процесса создания серийных номеров</li>
+                                                <li>Разработка системы учета сотрудников и их ролей</li>
+                                                <li>Внедрение системы статистики и аналитики</li>
+                                                <li>Создание удобного интерфейса для работы с данными</li>
+                                                <li>Обеспечение безопасности и разграничения доступа</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="about-section">
+                                    <h2>Функциональные возможности</h2>
+                                    <div class="features-grid">
+                                        <div class="feature-card">
+                                            <h3>Управление устройствами</h3>
+                                            <p>Создание, редактирование и отслеживание устройств на всех этапах производства. Автоматическая генерация серийных номеров по заданной структуре.</p>
+                                        </div>
+                                        <div class="feature-card">
+                                            <h3>Учет комплектующих</h3>
+                                            <p>Ведение складского учета комплектующих, контроль остатков, отслеживание поставок и резервирование для производства.</p>
+                                        </div>
+                                        <div class="feature-card">
+                                            <h3>Управление персоналом</h3>
+                                            <p>Учет сотрудников, назначение ролей и прав доступа, отслеживание занятости и распределение задач.</p>
+                                        </div>
+                                        <div class="feature-card">
+                                            <h3>Статистика и аналитика</h3>
+                                            <p>Сбор и анализ производственных показателей, формирование отчетов, отслеживание динамики производства и качества.</p>
+                                        </div>
+                                        <div class="feature-card">
+                                            <h3>Новостная система</h3>
+                                            <p>Публикация системных новостей и уведомлений, управление видимостью контента для разных групп пользователей.</p>
+                                        </div>
+                                        <div class="feature-card">
+                                            <h3>Типы изделий</h3>
+                                            <p>Гибкая настройка типов производимых изделий, их характеристик и структуры серийных номеров.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="about-section">
+                                    <h2>Техническая реализация</h2>
+                                    <div class="tech-details">
+                                        <div class="tech-info">
+                                            <div class="info-item">
+                                                <span class="info-label">Frontend:</span>
+                                                <span class="info-value">HTML5, CSS3, JavaScript</span>
+                                            </div>
+                                            <div class="info-item">
+                                                <span class="info-label">Стилизация:</span>
+                                                <span class="info-value">CSS с использованием современных технологий (Flexbox, Grid, переменные)</span>
+                                            </div>
+                                            <div class="info-item">
+                                                <span class="info-label">Адаптивность:</span>
+                                                <span class="info-value">Поддержка всех устройств (десктоп, планшеты, мобильные)</span>
+                                            </div>
+                                            <div class="info-item">
+                                                <span class="info-label">Дизайн:</span>
+                                                <span class="info-value">Современный минималистичный дизайн с мягкой цветовой гаммой</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="about-section">
+                                    <h2>Перспективы развития</h2>
+                                    <div class="about-card">
+                                        <p>В дальнейшем планируется расширение функционала системы:</p>
+                                        <ul>
+                                            <li>Интеграция с 1С и другими учетными системами</li>
+                                            <li>Разработка мобильного приложения</li>
+                                            <li>Внедрение системы машинного обучения для прогнозирования производственных показателей</li>
+                                            <li>Создание API для интеграции с внешними сервисами</li>
+                                            <li>Расширение системы отчетности и аналитики</li>
+                                            <li>Внедрение системы управления качеством</li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                <div class="about-footer">
+                                    <p>© 2024 Курбатова Мария Владимировна. Все права защищены.</p>
+                                    <p>Данная работа выполнена в рамках дипломного проектирования.</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                default:
+                    content = `
+                        <h3>Добро пожаловать</h3>
+                        <p>Выберите раздел в боковом меню для работы с системой.</p>
+                    `;
+            }
+
+            contentArea.innerHTML = content;
+            
+            // Обновляем активную кнопку в боковом меню
+            const tabs = document.querySelectorAll('.sidebar-tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+
+            // Добавляем интерактивность для структуры серийного номера
+            if (contentType === 'serial-structure') {
+                setTimeout(() => {
+                    const segments = document.querySelectorAll('.segment');
+                    const labels = document.querySelectorAll('.label');
+                    
+                    segments.forEach((segment, index) => {
+                        segment.addEventListener('mouseenter', function() {
+                            segments[index].style.background = '#E7D9CF';
+                            segments[index].style.color = '#5C4B3C';
+                            if (labels[index]) {
+                                labels[index].style.color = '#7D6B5A';
+                                labels[index].style.fontWeight = 'bold';
+                            }
+                        });
+                        
+                        segment.addEventListener('mouseleave', function() {
+                            segments[index].style.background = 'white';
+                            segments[index].style.color = '#5C4B3C';
+                            if (labels[index]) {
+                                labels[index].style.color = '#8F7E6C';
+                                labels[index].style.fontWeight = '500';
+                            }
+                        });
+                    });
+                }, 100);
+            }
+        }
+
+        // Функция для отображения контента из верхних вкладок
+        function showTopContent(contentType) {
+            const contentArea = document.getElementById('content-area');
+            let content = '';
+
+            switch(contentType) {
+                case 'profile':
+                    content = `
+                        <div class="profile-content">
+                            <h3>Профиль пользователя</h3>
+                            <div class="profile-section">
+                                <h4>Личная информация</h4>
+                                <div class="profile-info">
+                                    <div class="info-label">ФИО:</div>
+                                    <div class="info-value">Иван Иванов</div>
+                                </div>
+                                <div class="profile-info">
+                                    <div class="info-label">Должность:</div>
+                                    <div class="info-value">Администратор системы</div>
+                                </div>
+                                <div class="profile-info">
+                                    <div class="info-label">Email:</div>
+                                    <div class="info-value">ivan@company.com</div>
+                                </div>
+                                <div class="profile-info">
+                                    <div class="info-label">Телефон:</div>
+                                    <div class="info-value">+7 (999) 123-45-67</div>
+                                </div>
+                            </div>
+                            <div class="profile-section">
+                                <h4>Статистика</h4>
+                                <div class="profile-info">
+                                    <div class="info-label">В системе с:</div>
+                                    <div class="info-value">15.01.2023</div>
+                                </div>
+                                <div class="profile-info">
+                                    <div class="info-label">Последний вход:</div>
+                                    <div class="info-value">Сегодня, 14:30</div>
+                                </div>
+                            </div>
+                            <button class="logout-button" onclick="logout()">Выйти из системы</button>
+                        </div>
+                    `;
+                    break;
+                case 'settings':
+                    content = `
+                        <div class="settings-content">
+                            <h3>Настройки системы</h3>
+                            <div class="settings-group">
+                                <h4>Общие настройки</h4>
+                                <div class="setting-item">
+                                    <div class="setting-label">Язык интерфейса</div>
+                                    <select>
+                                        <option>Русский</option>
+                                        <option>English</option>
+                                    </select>
+                                </div>
+                                <div class="setting-item">
+                                    <div class="setting-label">Часовой пояс</div>
+                                    <select>
+                                        <option>Москва (UTC+3)</option>
+                                        <option>Калининград (UTC+2)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="settings-group">
+                                <h4>Уведомления</h4>
+                                <div class="setting-item">
+                                    <div class="setting-label">Email уведомления</div>
+                                    <input type="checkbox" checked>
+                                </div>
+                                <div class="setting-item">
+                                    <div class="setting-label">Push-уведомления</div>
+                                    <input type="checkbox">
+                                </div>
+                            </div>
+                            <div class="settings-group">
+                                <h4>Безопасность</h4>
+                                <div class="setting-item">
+                                    <div class="setting-label">Двухфакторная аутентификация</div>
+                                    <input type="checkbox">
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    break;
+            }
+
+            contentArea.innerHTML = content;
+            
+            // Обновляем активную кнопку в верхних вкладках
+            const topTabs = document.querySelectorAll('.top-tab');
+            topTabs.forEach(tab => tab.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+        }
+
+        // Функция выхода из системы
+        function logout() {
+            if (confirm('Вы уверены, что хотите выйти из системы?')) {
+                alert('Выход из системы...');
+                // Здесь будет код для выхода
+            }
+        }
+    </script>
+    
+    <!-- Подключение JS -->
+    <script src="dashboard.js"></script>
+</body>
+</html>
