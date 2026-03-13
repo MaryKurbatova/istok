@@ -426,3 +426,21 @@ INSERT INTO psi_tests (employee_id, device_id, test_date, test_result, protocol_
 (5, 3, '2004-03-09', 'Успешное завершение ПСИ', 'PSI-2004-003'),
 (5, 4, '2005-09-24', 'Испытания пройдены', 'PSI-2005-004'),
 (5, 5, '2006-05-17', 'Соответствует спецификациям', 'PSI-2006-005');
+
+
+CREATE TABLE users (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    employee_id BIGINT,
+    role VARCHAR(50) DEFAULT 'user',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL
+);
+
+-- Пароль: admin123 (в реальном проекте нужно хешировать!)
+INSERT INTO users (username, password, employee_id, role) 
+VALUES ('admin', 'admin123', 1, 'admin');
+
+INSERT INTO users (username, password, employee_id, role) 
+VALUES ('user', '123', 2, 'user');
