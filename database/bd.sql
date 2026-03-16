@@ -438,9 +438,14 @@ CREATE TABLE users (
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL
 );
 
--- Пароль: admin123 (в реальном проекте нужно хешировать!)
-INSERT INTO users (username, password, employee_id, role) 
-VALUES ('admin', 'admin123', 1, 'admin');
+-- Добавляем поля если ещё не добавили
+ALTER TABLE employees ADD COLUMN username VARCHAR(50) UNIQUE;
+ALTER TABLE employees ADD COLUMN password VARCHAR(255);
+ALTER TABLE employees ADD COLUMN role VARCHAR(50) DEFAULT 'user';
 
-INSERT INTO users (username, password, employee_id, role) 
-VALUES ('user', '123', 2, 'user');
+-- Добавляем тестовых пользователей
+INSERT INTO employees (last_name, first_name, middle_name, position, username, password, role) VALUES
+('Администратор', 'Главный', 'Системович', 'Главный администратор', 'admin', 'admin123', 'admin'),
+('Иванов', 'Иван', 'Иванович', 'Инженер', 'ivanov', '123', 'user'),
+('Петров', 'Петр', 'Петрович', 'Техник', 'petrov', '123', 'user');
+
