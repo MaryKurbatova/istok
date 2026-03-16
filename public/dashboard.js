@@ -5,6 +5,7 @@ const AppState = {
     currentContent: 'devices',
     currentTopContent: 'profile',
     devices: [],
+    filteredDevices: [],
     employees: [],
     deviceTypes: [],
     productionPlaces: [],
@@ -169,127 +170,6 @@ function addModalStyles() {
             background: var(--primary-dark);
         }
         
-        .scroll-area {
-            max-height: 600px;
-            overflow-y: auto;
-            padding-right: 0.5rem;
-        }
-        
-        .scroll-area::-webkit-scrollbar {
-            width: 6px;
-        }
-        
-        .scroll-area::-webkit-scrollbar-track {
-            background: var(--border-soft);
-            border-radius: var(--radius-full);
-        }
-        
-        .scroll-area::-webkit-scrollbar-thumb {
-            background: var(--primary-light);
-            border-radius: var(--radius-full);
-        }
-        
-        .data-card {
-            background: var(--bg-white);
-            border: 1px solid var(--border-light);
-            border-radius: var(--radius-md);
-            padding: 1rem;
-            margin-bottom: 1rem;
-            transition: var(--transition);
-        }
-        
-        .data-card:hover {
-            box-shadow: var(--shadow-md);
-            border-color: var(--primary-light);
-        }
-        
-        .data-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 0.5rem;
-        }
-        
-        .data-card-title {
-            font-weight: 600;
-            color: var(--primary);
-            font-size: 1.1rem;
-        }
-        
-        .data-card-subtitle {
-            color: var(--text-tertiary);
-            font-size: 0.85rem;
-        }
-        
-        .data-card-actions {
-            display: flex;
-            gap: 0.3rem;
-        }
-        
-        .data-card-content {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-        
-        .data-card-content p {
-            margin: 0.3rem 0;
-        }
-        
-        .data-card-content .badge {
-            display: inline-block;
-            padding: 0.2rem 0.5rem;
-            border-radius: var(--radius-full);
-            font-size: 0.8rem;
-            font-weight: 500;
-        }
-        
-        .badge-success {
-            background: #E8F0E8;
-            color: #6B8C6B;
-        }
-        
-        .badge-warning {
-            background: #FFF5F0;
-            color: #C49A8C;
-        }
-        
-        .badge-danger {
-            background: #FCE8E8;
-            color: #C46B6B;
-        }
-        
-        .form-group {
-            margin-bottom: 1.2rem;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            color: var(--text-secondary);
-            font-weight: 500;
-            font-size: 0.9rem;
-        }
-        
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-            width: 100%;
-            padding: 0.7rem 1rem;
-            border: 1px solid var(--border-light);
-            border-radius: var(--radius-md);
-            background: var(--bg-white);
-            color: var(--text-primary);
-            font-size: 0.95rem;
-        }
-        
-        .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(183, 161, 135, 0.1);
-        }
-        
         .grid-2 {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -343,8 +223,9 @@ async function loadDevices() {
         const response = await fetch('/api/devices');
         if (response.ok) {
             AppState.devices = await response.json();
+            AppState.filteredDevices = [...AppState.devices];
             console.log('✅ Устройства загружены:', AppState.devices.length);
-            renderDevices();
+            renderDevicesTable();
         } else {
             console.error('❌ Ошибка загрузки устройств:', response.status);
             showNotification('Ошибка загрузки устройств', 'error');
@@ -355,49 +236,92 @@ async function loadDevices() {
     }
 }
 
-function renderDevices() {
+function renderDevicesTable() {
     const container = document.getElementById('devices-list');
     if (!container) {
         console.error('❌ Элемент devices-list не найден');
         return;
     }
     
-    if (AppState.devices.length === 0) {
+    if (AppState.filteredDevices.length === 0) {
         container.innerHTML = '<div class="empty-state">Нет устройств</div>';
         return;
     }
     
-    let html = '<div class="scroll-area">';
+    let html = '<div class="table-container"><table class="data-table">';
+    html += `
+        <thead>
+            <tr>
+                <th>Серийный номер</th>
+                <th>Тип</th>
+                <th>Модель</th>
+                <th>Версия ОС</th>
+                <th>Дата производства</th>
+                <th>Статус</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
     
-    AppState.devices.forEach(device => {
-        const statusClass = device.diag ? 'badge-success' : 'badge-danger';
-        const statusText = device.diag ? '✓ Готов' : '✗ Проблема';
+    AppState.filteredDevices.forEach(device => {
+        const statusClass = device.diag ? 'success' : 'danger';
+        const statusText = device.diag ? 'Готов' : 'Проблема';
         
         html += `
-            <div class="data-card" data-id="${device.id}">
-                <div class="data-card-header">
-                    <div>
-                        <span class="data-card-title">${device.product_serial_number || 'Без номера'}</span>
-                        <div class="data-card-subtitle">${device.type || device.device_type_name || 'Не указан'}</div>
-                    </div>
-                    <div class="data-card-actions">
-                        <button class="action-btn edit" onclick="showDeviceDetails(${device.id})">👁️</button>
-                        <button class="action-btn edit" onclick="editDevice(${device.id})">✎</button>
-                        <button class="action-btn delete" onclick="deleteDevice(${device.id})">✕</button>
-                    </div>
-                </div>
-                <div class="data-card-content">
-                    <p><strong>Версия ОС:</strong> ${device.version_os || 'Не указана'}</p>
-                    <p><strong>Дата производства:</strong> ${device.manufactures_date || 'Не указана'}</p>
-                    <p><span class="badge ${statusClass}">${statusText}</span></p>
-                </div>
-            </div>
+            <tr>
+                <td><strong>${device.product_serial_number || '—'}</strong></td>
+                <td>${device.device_type_name || '—'}</td>
+                <td>${device.type || '—'}</td>
+                <td>${device.version_os || '—'}</td>
+                <td>${device.manufactures_date || '—'}</td>
+                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                <td class="table-actions">
+                    <button class="edit-btn" onclick="showDeviceDetails(${device.id})">👁️</button>
+                    <button class="edit-btn" onclick="editDevice(${device.id})">✎</button>
+                    <button class="delete-btn" onclick="deleteDevice(${device.id})">✕</button>
+                </td>
+            </tr>
         `;
     });
     
-    html += '</div>';
+    html += '</tbody></table></div>';
     container.innerHTML = html;
-    console.log('✅ Устройства отрендерены');
+    console.log('✅ Таблица устройств отрендерена');
+}
+
+function searchDevices() {
+    const searchTerm = document.getElementById('deviceSearch')?.value.toLowerCase() || '';
+    const typeFilter = document.getElementById('deviceTypeFilter')?.value || '';
+    
+    AppState.filteredDevices = AppState.devices.filter(device => {
+        const matchesSearch = searchTerm === '' || 
+            (device.product_serial_number && device.product_serial_number.toLowerCase().includes(searchTerm)) ||
+            (device.type && device.type.toLowerCase().includes(searchTerm)) ||
+            (device.device_type_name && device.device_type_name.toLowerCase().includes(searchTerm));
+        
+        const matchesType = typeFilter === '' || 
+            (device.device_type_id && device.device_type_id.toString() === typeFilter);
+        
+        return matchesSearch && matchesType;
+    });
+    
+    renderDevicesTable();
+}
+
+function filterDevicesByType() {
+    searchDevices();
+}
+
+function updateDeviceTypeFilter() {
+    const filterSelect = document.getElementById('deviceTypeFilter');
+    if (!filterSelect) return;
+    
+    let options = '<option value="">Все типы</option>';
+    AppState.deviceTypes.forEach(type => {
+        options += `<option value="${type.id}">${type.name}</option>`;
+    });
+    filterSelect.innerHTML = options;
 }
 
 async function showDeviceDetails(id) {
@@ -445,17 +369,17 @@ async function showDeviceDetails(id) {
                     <span class="info-value">${device.manufactures_date || 'Не указана'}</span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label">Диагностика:</span>
-                    <span class="info-value"><span class="badge ${device.diag ? 'badge-success' : 'badge-danger'}">${device.diag ? 'Пройдена' : 'Не пройдена'}</span></span>
+                    <span class="info-label">Статус:</span>
+                    <span class="info-value"><span class="status-badge ${device.diag ? 'success' : 'danger'}">${device.diag ? 'Готов' : 'Проблема'}</span></span>
                 </div>
                 
                 <h4 style="margin-top: 1.5rem; margin-bottom: 1rem;">Комплектующие</h4>
                 ${components.length > 0 ? `
-                    <div class="scroll-area" style="max-height: 200px;">
+                    <div style="max-height: 200px; overflow-y: auto;">
                         ${components.map(c => `
-                            <div class="data-card" style="padding: 0.8rem;">
+                            <div style="padding: 0.5rem; border-bottom: 1px solid var(--border-soft);">
                                 <div><strong>${c.type}:</strong> ${c.name}</div>
-                                ${c.author ? `<div><small>Проверил: ${c.author}, ${c.date || ''}</small></div>` : ''}
+                                ${c.author ? `<div><small>Проверил: ${c.author}</small></div>` : ''}
                             </div>
                         `).join('')}
                     </div>
@@ -473,6 +397,9 @@ async function showDeviceDetails(id) {
 async function addDevice() {
     await loadReferenceData();
     
+    // Получаем сегодняшнюю дату в формате YYYY-MM-DD
+    const today = new Date().toISOString().split('T')[0];
+    
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
@@ -483,15 +410,15 @@ async function addDevice() {
             </div>
             <div class="modal-content">
                 <div class="form-group">
-                    <label>Тип устройства</label>
-                    <select id="modal-device-type">
+                    <label>Тип устройства *</label>
+                    <select id="modal-device-type" required>
                         <option value="">Выберите тип</option>
                         ${AppState.deviceTypes.map(t => `<option value="${t.id}">${t.name} (${t.code})</option>`).join('')}
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Серийный номер</label>
-                    <input type="text" id="modal-serial-number" placeholder="Например: RS101016430001">
+                    <label>Серийный номер *</label>
+                    <input type="text" id="modal-serial-number" placeholder="Например: RS101016430001" required>
                 </div>
                 <div class="form-group">
                     <label>Модель/Тип</label>
@@ -501,48 +428,16 @@ async function addDevice() {
                     <label>Версия ОС</label>
                     <input type="text" id="modal-version-os" placeholder="Например: RouterOS 6.0">
                 </div>
-                <div class="grid-2">
-                    <div class="form-group">
-                        <label>Место производства</label>
-                        <select id="modal-production-place">
-                            <option value="">Не выбрано</option>
-                            ${AppState.productionPlaces.map(p => `<option value="${p.id}">${p.name} (${p.code})</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Месяц производства</label>
-                        <select id="modal-production-month">
-                            <option value="">Не выбран</option>
-                            ${AppState.productionMonths.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
-                        </select>
-                    </div>
-                </div>
-                <div class="grid-2">
-                    <div class="form-group">
-                        <label>Год производства</label>
-                        <select id="modal-production-year">
-                            <option value="">Не выбран</option>
-                            ${AppState.productionYears.map(y => `<option value="${y.id}">${y.name}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Этап производства</label>
-                        <select id="modal-production-stage">
-                            <option value="">Не выбран</option>
-                            ${AppState.productionStages.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
-                        </select>
-                    </div>
-                </div>
                 <div class="form-group">
-                    <label>Местоположение</label>
-                    <select id="modal-location">
+                    <label>Место производства</label>
+                    <select id="modal-production-place">
                         <option value="">Не выбрано</option>
-                        ${AppState.locations.map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+                        ${AppState.productionPlaces.map(p => `<option value="${p.id}">${p.name} (${p.code})</option>`).join('')}
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Дата производства</label>
-                    <input type="date" id="modal-manufactures-date">
+                    <input type="date" id="modal-manufactures-date" value="${today}">
                 </div>
                 <div class="form-group">
                     <label>
@@ -593,43 +488,11 @@ async function editDevice(id) {
                     <label>Версия ОС</label>
                     <input type="text" id="modal-version-os" value="${device.version_os || ''}">
                 </div>
-                <div class="grid-2">
-                    <div class="form-group">
-                        <label>Место производства</label>
-                        <select id="modal-production-place">
-                            <option value="">Не выбрано</option>
-                            ${AppState.productionPlaces.map(p => `<option value="${p.id}" ${p.id === device.place_of_production_id ? 'selected' : ''}>${p.name} (${p.code})</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Месяц производства</label>
-                        <select id="modal-production-month">
-                            <option value="">Не выбран</option>
-                            ${AppState.productionMonths.map(m => `<option value="${m.id}" ${m.id === device.production_month_id ? 'selected' : ''}>${m.name}</option>`).join('')}
-                        </select>
-                    </div>
-                </div>
-                <div class="grid-2">
-                    <div class="form-group">
-                        <label>Год производства</label>
-                        <select id="modal-production-year">
-                            <option value="">Не выбран</option>
-                            ${AppState.productionYears.map(y => `<option value="${y.id}" ${y.id === device.production_year_id ? 'selected' : ''}>${y.name}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Этап производства</label>
-                        <select id="modal-production-stage">
-                            <option value="">Не выбран</option>
-                            ${AppState.productionStages.map(s => `<option value="${s.id}" ${s.id === device.production_stage_id ? 'selected' : ''}>${s.name}</option>`).join('')}
-                        </select>
-                    </div>
-                </div>
                 <div class="form-group">
-                    <label>Местоположение</label>
-                    <select id="modal-location">
+                    <label>Место производства</label>
+                    <select id="modal-production-place">
                         <option value="">Не выбрано</option>
-                        ${AppState.locations.map(l => `<option value="${l.id}" ${l.id === device.actual_location_id ? 'selected' : ''}>${l.name}</option>`).join('')}
+                        ${AppState.productionPlaces.map(p => `<option value="${p.id}" ${p.id === device.place_of_production_id ? 'selected' : ''}>${p.name} (${p.code})</option>`).join('')}
                     </select>
                 </div>
                 <div class="form-group">
@@ -657,12 +520,18 @@ async function saveDevice() {
         product_serial_number: document.getElementById('modal-serial-number')?.value,
         type: document.getElementById('modal-type')?.value,
         version_os: document.getElementById('modal-version-os')?.value,
+        place_of_production_id: document.getElementById('modal-production-place')?.value || null,
         manufactures_date: document.getElementById('modal-manufactures-date')?.value,
         diag: document.getElementById('modal-diag')?.checked
     };
     
     if (!deviceData.product_serial_number) {
         showNotification('Введите серийный номер', 'warning');
+        return;
+    }
+    
+    if (!deviceData.device_type_id) {
+        showNotification('Выберите тип устройства', 'warning');
         return;
     }
     
@@ -693,6 +562,7 @@ async function updateDevice(id) {
         product_serial_number: document.getElementById('modal-serial-number')?.value,
         type: document.getElementById('modal-type')?.value,
         version_os: document.getElementById('modal-version-os')?.value,
+        place_of_production_id: document.getElementById('modal-production-place')?.value || null,
         manufactures_date: document.getElementById('modal-manufactures-date')?.value,
         diag: document.getElementById('modal-diag')?.checked
     };
@@ -748,14 +618,12 @@ async function loadProductTypes() {
     console.log('📋 loadProductTypes вызвана');
     try {
         const response = await fetch('/api/device-types');
-        console.log('📡 Ответ от API, статус:', response.status);
-        
         if (response.ok) {
             const types = await response.json();
             console.log('✅ Получены типы:', types);
             renderProductTypes(types);
         } else {
-            console.error('❌ Ошибка ответа:', response.status);
+            console.error('❌ Ошибка загрузки типов:', response.status);
             showNotification('Ошибка загрузки типов', 'error');
         }
     } catch (error) {
@@ -765,39 +633,39 @@ async function loadProductTypes() {
 }
 
 function renderProductTypes(types) {
-    console.log('🎨 renderProductTypes вызвана, типов:', types.length);
     const container = document.getElementById('product-types-list');
-    console.log('📦 контейнер найден:', container);
-    
-    if (!container) {
-        console.error('❌ Элемент product-types-list не найден!');
-        return;
-    }
+    if (!container) return;
     
     if (types.length === 0) {
         container.innerHTML = '<div class="empty-state">Нет типов изделий</div>';
         return;
     }
     
-    let html = '<div class="scroll-area">';
+    let html = '<div class="table-container"><table class="data-table">';
+    html += `
+        <thead>
+            <tr>
+                <th>Название</th>
+                <th>Код</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
     
     types.forEach(type => {
         html += `
-            <div class="data-card" data-id="${type.id}">
-                <div class="data-card-header">
-                    <div>
-                        <span class="data-card-title">${type.name}</span>
-                        <div class="data-card-subtitle">Код: ${type.code}</div>
-                    </div>
-                    <div class="data-card-actions">
-                        <button class="action-btn delete" onclick="deleteProductType(${type.id})">✕</button>
-                    </div>
-                </div>
-            </div>
+            <tr>
+                <td><strong>${type.name}</strong></td>
+                <td>${type.code}</td>
+                <td class="table-actions">
+                    <button class="delete-btn" onclick="deleteProductType(${type.id})">✕</button>
+                </td>
+            </tr>
         `;
     });
     
-    html += '</div>';
+    html += '</tbody></table></div>';
     container.innerHTML = html;
     console.log('✅ Типы отрендерены');
 }
@@ -880,7 +748,7 @@ async function deleteProductType(id) {
     }
 }
 
-// ===== ИСПРАВЛЕННЫЕ ФУНКЦИИ ДЛЯ СОТРУДНИКОВ =====
+// ===== ФУНКЦИИ ДЛЯ СОТРУДНИКОВ =====
 async function loadEmployees() {
     console.log('👤 loadEmployees вызвана');
     try {
@@ -888,7 +756,7 @@ async function loadEmployees() {
         if (response.ok) {
             AppState.employees = await response.json();
             console.log('✅ Сотрудники загружены:', AppState.employees.length);
-            renderEmployees();
+            renderEmployeesTable();
         } else {
             console.error('❌ Ошибка загрузки сотрудников:', response.status);
             showNotification('Ошибка загрузки сотрудников', 'error');
@@ -899,46 +767,50 @@ async function loadEmployees() {
     }
 }
 
-function renderEmployees() {
+function renderEmployeesTable() {
     const container = document.getElementById('employees-list');
-    if (!container) {
-        console.error('❌ Элемент employees-list не найден');
-        return;
-    }
+    if (!container) return;
     
     if (AppState.employees.length === 0) {
         container.innerHTML = '<div class="empty-state">Нет сотрудников</div>';
         return;
     }
     
-    let html = '<div class="scroll-area">';
+    let html = '<div class="table-container"><table class="data-table">';
+    html += `
+        <thead>
+            <tr>
+                <th>ФИО</th>
+                <th>Должность</th>
+                <th>Логин</th>
+                <th>Роль</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
     
     AppState.employees.forEach(emp => {
-        const roleClass = emp.role === 'admin' ? 'badge-success' : 'badge-warning';
+        const roleClass = emp.role === 'admin' ? 'success' : 'warning';
+        const roleText = emp.role === 'admin' ? 'Администратор' : 'Пользователь';
         
         html += `
-            <div class="data-card" data-id="${emp.id}">
-                <div class="data-card-header">
-                    <div>
-                        <span class="data-card-title">${emp.last_name} ${emp.first_name} ${emp.middle_name || ''}</span>
-                        <div class="data-card-subtitle">${emp.position}</div>
-                    </div>
-                    <div class="data-card-actions">
-                        <button class="action-btn edit" onclick="editEmployee(${emp.id})">✎</button>
-                        <button class="action-btn delete" onclick="deleteEmployee(${emp.id})">✕</button>
-                    </div>
-                </div>
-                <div class="data-card-content">
-                    <p><strong>Логин:</strong> ${emp.username || 'Не задан'}</p>
-                    <p><span class="badge ${roleClass}">${emp.role || 'user'}</span></p>
-                </div>
-            </div>
+            <tr>
+                <td><strong>${emp.last_name} ${emp.first_name} ${emp.middle_name || ''}</strong></td>
+                <td>${emp.position}</td>
+                <td>${emp.username || '—'}</td>
+                <td><span class="status-badge ${roleClass}">${roleText}</span></td>
+                <td class="table-actions">
+                    <button class="edit-btn" onclick="editEmployee(${emp.id})">✎</button>
+                    <button class="delete-btn" onclick="deleteEmployee(${emp.id})">✕</button>
+                </td>
+            </tr>
         `;
     });
     
-    html += '</div>';
+    html += '</tbody></table></div>';
     container.innerHTML = html;
-    console.log('✅ Сотрудники отрендерены');
+    console.log('✅ Таблица сотрудников отрендерена');
 }
 
 async function addEmployee() {
@@ -1163,7 +1035,7 @@ async function loadComponents() {
         if (response.ok) {
             const components = await response.json();
             console.log('✅ Комплектующие загружены:', components.length);
-            renderComponents(components);
+            renderComponentsTable(components);
         } else {
             console.error('❌ Ошибка загрузки комплектующих:', response.status);
             showNotification('Ошибка загрузки комплектующих', 'error');
@@ -1174,55 +1046,53 @@ async function loadComponents() {
     }
 }
 
-function renderComponents(components) {
+function renderComponentsTable(components) {
     const container = document.getElementById('components-list');
-    if (!container) {
-        console.error('❌ Элемент components-list не найден');
-        return;
-    }
+    if (!container) return;
     
     if (components.length === 0) {
         container.innerHTML = '<div class="empty-state">Нет комплектующих</div>';
         return;
     }
     
-    // Группируем по типу
-    const grouped = components.reduce((acc, comp) => {
-        if (!acc[comp.type]) acc[comp.type] = [];
-        acc[comp.type].push(comp);
-        return acc;
-    }, {});
+    let html = '<div class="table-container"><table class="data-table">';
+    html += `
+        <thead>
+            <tr>
+                <th>Тип</th>
+                <th>Наименование</th>
+                <th>ID устройства</th>
+                <th>Проверил</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
     
-    let html = '<div class="scroll-area">';
+    components.forEach(comp => {
+        html += `
+            <tr data-id="${comp.id}" data-type="${comp.type}">
+                <td><span class="status-badge info">${comp.type}</span></td>
+                <td><strong>${comp.name}</strong></td>
+                <td>${comp.device_id || '—'}</td>
+                <td>${comp.author || '—'}</td>
+                <td class="table-actions">
+                    <button class="delete-btn" onclick="deleteComponent(${comp.id}, '${comp.type}')">✕</button>
+                </td>
+            </tr>
+        `;
+    });
     
-    for (const [type, items] of Object.entries(grouped)) {
-        html += `<h4 style="margin: 1rem 0 0.5rem;">${type}</h4>`;
-        items.forEach(comp => {
-            html += `
-                <div class="data-card" style="padding: 0.8rem;" data-id="${comp.id}" data-type="${type}">
-                    <div><strong>${comp.name}</strong></div>
-                    ${comp.device_id ? `<div><small>ID устройства: ${comp.device_id}</small></div>` : ''}
-                    ${comp.author ? `<div><small>Проверил: ${comp.author}</small></div>` : ''}
-                    <div style="margin-top: 0.5rem;">
-                        <button class="action-btn delete" onclick="deleteComponent(${comp.id}, '${type}')">✕</button>
-                    </div>
-                </div>
-            `;
-        });
-    }
-    
-    html += '</div>';
+    html += '</tbody></table></div>';
     container.innerHTML = html;
-    console.log('✅ Комплектующие отрендерены');
+    console.log('✅ Таблица комплектующих отрендерена');
 }
 
 async function addComponent() {
     try {
-        // Загружаем типы комплектующих
         const typesResponse = await fetch('/api/component-types');
         const types = await typesResponse.json();
         
-        // Загружаем устройства для выпадающего списка
         const devicesResponse = await fetch('/api/devices');
         const devices = await devicesResponse.json();
         
@@ -1266,14 +1136,9 @@ async function addComponent() {
         `;
         document.body.appendChild(modal);
         
-        // Показываем поле автора только для плат
         document.getElementById('modal-component-type').addEventListener('change', function() {
             const authorGroup = document.getElementById('modal-author-group');
-            if (this.value === 'board') {
-                authorGroup.style.display = 'block';
-            } else {
-                authorGroup.style.display = 'none';
-            }
+            authorGroup.style.display = this.value === 'board' ? 'block' : 'none';
         });
         
     } catch (error) {
@@ -1352,7 +1217,7 @@ async function loadProductionPlaces() {
         if (response.ok) {
             const places = await response.json();
             console.log('✅ Места производства загружены:', places.length);
-            renderProductionPlaces(places);
+            renderProductionPlacesTable(places);
         } else {
             console.error('❌ Ошибка загрузки мест:', response.status);
             showNotification('Ошибка загрузки мест производства', 'error');
@@ -1363,39 +1228,42 @@ async function loadProductionPlaces() {
     }
 }
 
-function renderProductionPlaces(places) {
+function renderProductionPlacesTable(places) {
     const container = document.getElementById('production-places-list');
-    if (!container) {
-        console.error('❌ Элемент production-places-list не найден');
-        return;
-    }
+    if (!container) return;
     
     if (places.length === 0) {
         container.innerHTML = '<div class="empty-state">Нет мест производства</div>';
         return;
     }
     
-    let html = '<div class="scroll-area">';
+    let html = '<div class="table-container"><table class="data-table">';
+    html += `
+        <thead>
+            <tr>
+                <th>Название</th>
+                <th>Код</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
     
     places.forEach(place => {
         html += `
-            <div class="data-card" data-id="${place.id}">
-                <div class="data-card-header">
-                    <div>
-                        <span class="data-card-title">${place.name}</span>
-                        <div class="data-card-subtitle">Код: ${place.code}</div>
-                    </div>
-                    <div class="data-card-actions">
-                        <button class="action-btn delete" onclick="deleteProductionPlace(${place.id})">✕</button>
-                    </div>
-                </div>
-            </div>
+            <tr>
+                <td><strong>${place.name}</strong></td>
+                <td>${place.code}</td>
+                <td class="table-actions">
+                    <button class="delete-btn" onclick="deleteProductionPlace(${place.id})">✕</button>
+                </td>
+            </tr>
         `;
     });
     
-    html += '</div>';
+    html += '</tbody></table></div>';
     container.innerHTML = html;
-    console.log('✅ Места производства отрендерены');
+    console.log('✅ Таблица мест производства отрендерена');
 }
 
 async function addProductionPlace() {
@@ -1497,65 +1365,59 @@ async function loadStatistics() {
 
 function renderStatistics(stats) {
     const container = document.getElementById('statistics-content');
-    if (!container) {
-        console.error('❌ Элемент statistics-content не найден');
-        return;
-    }
+    if (!container) return;
     
     container.innerHTML = `
-        <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-            <div class="stat-card-mini" style="background: var(--bg-white); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 1rem; text-align: center;">
-                <div style="font-size: 2rem; font-weight: 700; color: var(--primary);">${stats.devices.total}</div>
-                <div style="color: var(--text-secondary);">Всего устройств</div>
-            </div>
-            <div class="stat-card-mini" style="background: var(--bg-white); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 1rem; text-align: center;">
-                <div style="font-size: 2rem; font-weight: 700; color: var(--primary);">${stats.devices.ready}</div>
-                <div style="color: var(--text-secondary);">Готово (${stats.devices.ready_percentage}%)</div>
-            </div>
-            <div class="stat-card-mini" style="background: var(--bg-white); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 1rem; text-align: center;">
-                <div style="font-size: 2rem; font-weight: 700; color: var(--primary);">${stats.devices.problems}</div>
-                <div style="color: var(--text-secondary);">С проблемами (${stats.devices.problems_percentage}%)</div>
-            </div>
-        </div>
-        
-        <div class="stats-columns" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
-            <div class="stats-section" style="background: var(--bg-white); border-radius: var(--radius-lg); border: 1px solid var(--border-light); overflow: hidden;">
-                <div class="section-header" style="background: var(--bg-soft); padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-light);">
-                    <h2 style="margin: 0; font-size: 1.1rem;">ПО ТИПАМ УСТРОЙСТВ</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+            <div class="stats-section">
+                <div class="section-header">
+                    <h2>ОБЩАЯ СТАТИСТИКА</h2>
                 </div>
-                <div class="type-stats scroll-area" style="max-height: 300px; padding: 1rem;">
+                <div style="padding: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                        <div class="stat-item">
+                            <div class="stat-value">${stats.devices.total}</div>
+                            <div class="stat-label">Всего устройств</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${stats.devices.ready}</div>
+                            <div class="stat-label">Готово</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${stats.devices.problems}</div>
+                            <div class="stat-label">С проблемами</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${stats.devices.ready_percentage}%</div>
+                            <div class="stat-label">Готовность</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stats-section">
+                <div class="section-header">
+                    <h2>ПО ТИПАМ УСТРОЙСТВ</h2>
+                </div>
+                <div style="padding: 1.5rem;">
                     ${stats.byType.map(type => `
                         <div style="display: flex; justify-content: space-between; padding: 0.5rem; border-bottom: 1px solid var(--border-soft);">
-                            <span style="font-weight: 600;">${type.code}</span>
+                            <span style="font-weight: 600;">${type.name}</span>
                             <span>${type.count} шт.</span>
                         </div>
                     `).join('')}
                 </div>
             </div>
             
-            <div class="stats-section" style="background: var(--bg-white); border-radius: var(--radius-lg); border: 1px solid var(--border-light); overflow: hidden;">
-                <div class="section-header" style="background: var(--bg-soft); padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-light);">
-                    <h2 style="margin: 0; font-size: 1.1rem;">ПО ЭТАПАМ ПРОИЗВОДСТВА</h2>
+            <div class="stats-section">
+                <div class="section-header">
+                    <h2>ПО ЭТАПАМ ПРОИЗВОДСТВА</h2>
                 </div>
-                <div class="type-stats scroll-area" style="max-height: 300px; padding: 1rem;">
+                <div style="padding: 1.5rem;">
                     ${stats.byStage.map(stage => `
                         <div style="display: flex; justify-content: space-between; padding: 0.5rem; border-bottom: 1px solid var(--border-soft);">
-                            <span style="font-weight: 600;">${stage.code}</span>
+                            <span style="font-weight: 600;">${stage.name}</span>
                             <span>${stage.count} шт.</span>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-            
-            <div class="stats-section" style="background: var(--bg-white); border-radius: var(--radius-lg); border: 1px solid var(--border-light); overflow: hidden;">
-                <div class="section-header" style="background: var(--bg-soft); padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-light);">
-                    <h2 style="margin: 0; font-size: 1.1rem;">ПО МЕСТАМ ПРОИЗВОДСТВА</h2>
-                </div>
-                <div class="type-stats scroll-area" style="max-height: 300px; padding: 1rem;">
-                    ${stats.byPlace.map(place => `
-                        <div style="display: flex; justify-content: space-between; padding: 0.5rem; border-bottom: 1px solid var(--border-soft);">
-                            <span style="font-weight: 600;">${place.code}</span>
-                            <span>${place.count} шт.</span>
                         </div>
                     `).join('')}
                 </div>
@@ -1609,22 +1471,17 @@ window.showContent = async function(contentType) {
                         <h1>УСТРОЙСТВА</h1>
                         <button class="add-button" onclick="addDevice()">+ Добавить устройство</button>
                     </div>
+                    <div class="search-panel">
+                        <div class="search-input">
+                            <input type="text" id="deviceSearch" placeholder="Поиск по серийному номеру или модели...">
+                            <button onclick="searchDevices()">Найти</button>
+                        </div>
+                        <select class="filter-select" id="deviceTypeFilter" onchange="filterDevicesByType()">
+                            <option value="">Все типы</option>
+                        </select>
+                    </div>
                     <div class="page-content">
                         <div id="devices-list"></div>
-                    </div>
-                </div>
-            `;
-            break;
-            
-        case 'employees':
-            content = `
-                <div class="employees-page">
-                    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
-                        <h1>СОТРУДНИКИ</h1>
-                        <button class="add-button" onclick="addEmployee()">+ Добавить сотрудника</button>
-                    </div>
-                    <div class="page-content">
-                        <div id="employees-list"></div>
                     </div>
                 </div>
             `;
@@ -1734,28 +1591,6 @@ window.showContent = async function(contentType) {
             `;
             break;
             
-        case 'about':
-            content = `
-                <div class="about-page">
-                    <div class="page-header">
-                        <h1>О ПРОГРАММЕ</h1>
-                    </div>
-                    <div class="page-content" style="padding: 2rem;">
-                        <h2>Дипломный проект</h2>
-                        <p>Данная информационная система представляет собой дипломный проект, выполненный студенткой группы 405ИС-22 Курбатовой Марией Владимировной.</p>
-                        <p>Проект посвящен разработке автоматизированной системы управления производственным процессом на предприятии.</p>
-                        <br>
-                        <h3>О разработчике</h3>
-                        <p><strong>Курбатова Мария Владимировна</strong><br>
-                        Студентка группы 405ИС-22<br>
-                        КМПО РАНХиГС, 2026</p>
-                        <br>
-                        <p>© 2026 Все права защищены.</p>
-                    </div>
-                </div>
-            `;
-            break;
-            
         default:
             content = `
                 <h3>Добро пожаловать</h3>
@@ -1780,9 +1615,7 @@ window.showContent = async function(contentType) {
         switch(contentType) {
             case 'devices':
                 loadDevices();
-                break;
-            case 'employees':
-                loadEmployees();
+                setTimeout(() => updateDeviceTypeFilter(), 500);
                 break;
             case 'product-types':
                 loadProductTypes();
@@ -1802,41 +1635,203 @@ window.showContent = async function(contentType) {
 
 // ===== ФУНКЦИИ ДЛЯ ПРОФИЛЯ И НАСТРОЕК =====
 window.showTopContent = function(contentType) {
+    console.log('🔄 Переключение на верхнюю вкладку:', contentType);
+    AppState.currentTopContent = contentType;
     const contentArea = document.getElementById('content-area');
     let content = '';
 
     switch(contentType) {
         case 'profile':
             content = `
-                <div class="profile-content">
-                    <h3>Профиль пользователя</h3>
-                    <div class="profile-section">
-                        <h4>Личная информация</h4>
-                        <div class="profile-info" style="display: grid; grid-template-columns: 150px 1fr; gap: 1rem; padding: 0.8rem 1rem; background: var(--bg-soft); border-radius: var(--radius-md);">
-                            <span style="font-weight: 600;">ФИО:</span>
-                            <span>Администратор Системы</span>
-                        </div>
-                        <div class="profile-info" style="display: grid; grid-template-columns: 150px 1fr; gap: 1rem; padding: 0.8rem 1rem; background: var(--bg-soft); border-radius: var(--radius-md);">
-                            <span style="font-weight: 600;">Должность:</span>
-                            <span>Главный администратор</span>
-                        </div>
-                        <div class="profile-info" style="display: grid; grid-template-columns: 150px 1fr; gap: 1rem; padding: 0.8rem 1rem; background: var(--bg-soft); border-radius: var(--radius-md);">
-                            <span style="font-weight: 600;">Логин:</span>
-                            <span>admin</span>
+                <div class="profile-page">
+                    <div class="page-header">
+                        <h1>ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ</h1>
+                    </div>
+                    <div class="page-content">
+                        <div class="profile-card">
+                            <div class="profile-header">
+                                <div class="profile-avatar">А</div>
+                                <h2>Администратор Системы</h2>
+                                <p>Главный администратор</p>
+                            </div>
+                            <div class="profile-body">
+                                <div class="profile-section">
+                                    <h3>Личная информация</h3>
+                                    <div class="profile-row">
+                                        <span class="profile-label">ФИО:</span>
+                                        <span class="profile-value">Администратор Системы</span>
+                                    </div>
+                                    <div class="profile-row">
+                                        <span class="profile-label">Должность:</span>
+                                        <span class="profile-value">Главный администратор</span>
+                                    </div>
+                                    <div class="profile-row">
+                                        <span class="profile-label">Email:</span>
+                                        <span class="profile-value">admin@istok.ru</span>
+                                    </div>
+                                    <div class="profile-row">
+                                        <span class="profile-label">Логин:</span>
+                                        <span class="profile-value">admin</span>
+                                    </div>
+                                </div>
+                                <div class="profile-section">
+                                    <h3>Статистика активности</h3>
+                                    <div class="profile-stats">
+                                        <div class="stat-item">
+                                            <div class="stat-value">15.01.2023</div>
+                                            <div class="stat-label">В системе с</div>
+                                        </div>
+                                        <div class="stat-item">
+                                            <div class="stat-value">Сегодня</div>
+                                            <div class="stat-label">Последний вход</div>
+                                        </div>
+                                        <div class="stat-item">
+                                            <div class="stat-value">127</div>
+                                            <div class="stat-label">Действий</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             `;
             break;
+            
+        case 'employees':
+            content = `
+                <div class="employees-page">
+                    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h1>СОТРУДНИКИ</h1>
+                        <button class="add-button" onclick="addEmployee()">+ Добавить сотрудника</button>
+                    </div>
+                    <div class="page-content">
+                        <div id="employees-list"></div>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'about':
+            content = `
+                <div class="about-page">
+                    <div class="page-header">
+                        <h1>О ПРОГРАММЕ</h1>
+                    </div>
+                    <div class="page-content">
+                        <div class="profile-card">
+                            <div class="profile-header">
+                                <div class="profile-avatar">Д</div>
+                                <h2>Дипломный проект</h2>
+                                <p>Курбатова Мария Владимировна</p>
+                            </div>
+                            <div class="profile-body">
+                                <div class="profile-section">
+                                    <h3>О проекте</h3>
+                                    <p style="line-height: 1.6; color: var(--text-secondary); margin-bottom: 1rem;">
+                                        Данная информационная система представляет собой дипломный проект, 
+                                        выполненный студенткой группы 405ИС-22 Курбатовой Марией Владимировной.
+                                    </p>
+                                    <p style="line-height: 1.6; color: var(--text-secondary);">
+                                        Проект посвящен разработке автоматизированной системы управления 
+                                        производственным процессом на предприятии. Система позволяет отслеживать 
+                                        все этапы производства устройств, вести учет комплектующих, управлять 
+                                        персоналом и анализировать производственные показатели.
+                                    </p>
+                                </div>
+                                <div class="profile-section">
+                                    <h3>О разработчике</h3>
+                                    <div class="profile-row">
+                                        <span class="profile-label">Студент:</span>
+                                        <span class="profile-value">Курбатова Мария Владимировна</span>
+                                    </div>
+                                    <div class="profile-row">
+                                        <span class="profile-label">Группа:</span>
+                                        <span class="profile-value">405ИС-22</span>
+                                    </div>
+                                    <div class="profile-row">
+                                        <span class="profile-label">Учебное заведение:</span>
+                                        <span class="profile-value">КМПО РАНХиГС</span>
+                                    </div>
+                                    <div class="profile-row">
+                                        <span class="profile-label">Год окончания:</span>
+                                        <span class="profile-value">2026</span>
+                                    </div>
+                                </div>
+                                <div class="profile-section">
+                                    <h3>Техническая реализация</h3>
+                                    <div class="profile-row">
+                                        <span class="profile-label">Frontend:</span>
+                                        <span class="profile-value">HTML5, CSS3, JavaScript</span>
+                                    </div>
+                                    <div class="profile-row">
+                                        <span class="profile-label">Backend:</span>
+                                        <span class="profile-value">Node.js, Express</span>
+                                    </div>
+                                    <div class="profile-row">
+                                        <span class="profile-label">База данных:</span>
+                                        <span class="profile-value">MySQL</span>
+                                    </div>
+                                </div>
+                                <div style="text-align: center; margin-top: 2rem; color: var(--text-tertiary);">
+                                    <p>© 2026 Курбатова Мария Владимировна. Все права защищены.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            break;
+            
         case 'settings':
             content = `
-                <div class="settings-content">
-                    <h3>Настройки системы</h3>
-                    <div class="settings-group">
-                        <h4>Тема оформления</h4>
-                        <div class="setting-item" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 0; border-bottom: 1px solid var(--border-soft);">
-                            <span>Темная тема</span>
-                            <input type="checkbox" onchange="toggleTheme()" ${document.body.classList.contains('theme-dark') ? 'checked' : ''}>
+                <div class="settings-page">
+                    <div class="page-header">
+                        <h1>НАСТРОЙКИ СИСТЕМЫ</h1>
+                    </div>
+                    <div class="page-content">
+                        <div class="profile-card">
+                            <div class="profile-body">
+                                <div class="profile-section">
+                                    <h3>Тема оформления</h3>
+                                    <div class="profile-row">
+                                        <span class="profile-label">Темная тема</span>
+                                        <span class="profile-value">
+                                            <input type="checkbox" onchange="toggleTheme()" ${document.body.classList.contains('theme-dark') ? 'checked' : ''}>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="profile-section">
+                                    <h3>Язык интерфейса</h3>
+                                    <div class="profile-row">
+                                        <span class="profile-label">Русский</span>
+                                        <span class="profile-value">
+                                            <input type="radio" name="language" checked>
+                                        </span>
+                                    </div>
+                                    <div class="profile-row">
+                                        <span class="profile-label">English</span>
+                                        <span class="profile-value">
+                                            <input type="radio" name="language">
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="profile-section">
+                                    <h3>Уведомления</h3>
+                                    <div class="profile-row">
+                                        <span class="profile-label">Email уведомления</span>
+                                        <span class="profile-value">
+                                            <input type="checkbox" checked>
+                                        </span>
+                                    </div>
+                                    <div class="profile-row">
+                                        <span class="profile-label">Системные уведомления</span>
+                                        <span class="profile-value">
+                                            <input type="checkbox" checked>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1850,6 +1845,13 @@ window.showTopContent = function(contentType) {
     const topTabs = document.querySelectorAll('.top-tab');
     topTabs.forEach(tab => tab.classList.remove('active'));
     event.currentTarget.classList.add('active');
+
+    // Загружаем данные для сотрудников если нужно
+    if (contentType === 'employees') {
+        setTimeout(() => {
+            loadEmployees();
+        }, 100);
+    }
 };
 
 // ===== ПЕРЕКЛЮЧЕНИЕ ТЕМЫ =====
@@ -1893,3 +1895,12 @@ window.saveEmployee = saveEmployee;
 window.updateEmployee = updateEmployee;
 window.saveProductType = saveProductType;
 window.saveProductionPlace = saveProductionPlace;
+window.searchDevices = searchDevices;
+window.filterDevicesByType = filterDevicesByType;
+window.updateDeviceTypeFilter = updateDeviceTypeFilter;
+window.loadDevices = loadDevices;
+window.loadEmployees = loadEmployees;
+window.loadProductTypes = loadProductTypes;
+window.loadProductionPlaces = loadProductionPlaces;
+window.loadStatistics = loadStatistics;
+window.loadComponents = loadComponents;

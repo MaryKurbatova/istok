@@ -14,7 +14,7 @@
     </button>
 
     <div class="dashboard-container">
-        <!-- Боковые вкладки (основные разделы) -->
+        <!-- Боковые вкладки -->
         <div class="sidebar">
             <button class="sidebar-tab active" onclick="showContent('devices')">Устройства</button>
             <button class="sidebar-tab" onclick="showContent('product-types')">Типы изделий</button>
@@ -33,45 +33,32 @@
                     <div class="user-role">Главный администратор</div>
                 </div>
                 <div class="top-tabs">
+                    <button class="top-tab active" onclick="showTopContent('profile')">Профиль</button>
                     <button class="top-tab" onclick="showTopContent('employees')">Сотрудники</button>
                     <button class="top-tab" onclick="showTopContent('about')">О программе</button>
-                    <button class="top-tab" onclick="showTopContent('profile')">Профиль</button>
                     <button class="top-tab" onclick="showTopContent('settings')">Настройки</button>
-                    <button class="top-tab logout-tab" onclick="logout()">Выйти</button>
+                    <button class="top-tab" onclick="logout()">Выйти</button>
                 </div>
             </div>
 
             <div class="content-area" id="content-area">
                 <!-- Контент по умолчанию - Устройства -->
                 <div class="devices-page">
-                    <div class="page-header">
+                    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
                         <h1>УСТРОЙСТВА</h1>
-                        <div class="header-controls">
-                            <div class="search-box">
-                                <input type="text" id="device-search" placeholder="Поиск по серийному номеру, типу..." oninput="filterDevices()">
-                                <button class="search-button">🔍</button>
-                            </div>
-                            <button class="add-button" onclick="addDevice()">+ Добавить устройство</button>
+                        <button class="add-button" onclick="addDevice()">+ Добавить устройство</button>
+                    </div>
+                    <div class="search-panel">
+                        <div class="search-input">
+                            <input type="text" id="deviceSearch" placeholder="Поиск по серийному номеру или модели...">
+                            <button onclick="searchDevices()">Найти</button>
                         </div>
+                        <select class="filter-select" id="deviceTypeFilter" onchange="filterDevicesByType()">
+                            <option value="">Все типы</option>
+                        </select>
                     </div>
                     <div class="page-content">
-                        <div class="table-container">
-                            <table class="data-table" id="devices-table">
-                                <thead>
-                                    <tr>
-                                        <th>Серийный номер</th>
-                                        <th>Тип</th>
-                                        <th>Версия ОС</th>
-                                        <th>Дата производства</th>
-                                        <th>Статус</th>
-                                        <th>Действия</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="devices-list">
-                                    <!-- Данные загружаются через JS -->
-                                </tbody>
-                            </table>
-                        </div>
+                        <div id="devices-list"></div>
                     </div>
                 </div>
             </div>
@@ -115,34 +102,21 @@
                 case 'devices':
                     content = `
                         <div class="devices-page">
-                            <div class="page-header">
+                            <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
                                 <h1>УСТРОЙСТВА</h1>
-                                <div class="header-controls">
-                                    <div class="search-box">
-                                        <input type="text" id="device-search" placeholder="Поиск по серийному номеру, типу..." oninput="filterDevices()">
-                                        <button class="search-button">🔍</button>
-                                    </div>
-                                    <button class="add-button" onclick="addDevice()">+ Добавить устройство</button>
+                                <button class="add-button" onclick="addDevice()">+ Добавить устройство</button>
+                            </div>
+                            <div class="search-panel">
+                                <div class="search-input">
+                                    <input type="text" id="deviceSearch" placeholder="Поиск по серийному номеру или модели...">
+                                    <button onclick="searchDevices()">Найти</button>
                                 </div>
+                                <select class="filter-select" id="deviceTypeFilter" onchange="filterDevicesByType()">
+                                    <option value="">Все типы</option>
+                                </select>
                             </div>
                             <div class="page-content">
-                                <div class="table-container">
-                                    <table class="data-table" id="devices-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Серийный номер</th>
-                                                <th>Тип</th>
-                                                <th>Версия ОС</th>
-                                                <th>Дата производства</th>
-                                                <th>Статус</th>
-                                                <th>Действия</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="devices-list">
-                                            <!-- Данные загружаются через JS -->
-                                        </tbody>
-                                    </table>
-                                </div>
+                                <div id="devices-list"></div>
                             </div>
                         </div>
                     `;
@@ -151,23 +125,12 @@
                 case 'product-types':
                     content = `
                         <div class="product-types-page">
-                            <div class="page-header">
+                            <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
                                 <h1>ТИПЫ ИЗДЕЛИЙ</h1>
                                 <button class="add-button" onclick="addProductType()">+ Добавить тип</button>
                             </div>
                             <div class="page-content">
-                                <div class="table-container">
-                                    <table class="data-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Код</th>
-                                                <th>Название</th>
-                                                <th>Действия</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="product-types-list"></tbody>
-                                    </table>
-                                </div>
+                                <div id="product-types-list"></div>
                             </div>
                         </div>
                     `;
@@ -176,26 +139,12 @@
                 case 'components':
                     content = `
                         <div class="components-page">
-                            <div class="page-header">
+                            <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
                                 <h1>КОМПЛЕКТУЮЩИЕ</h1>
                                 <button class="add-button" onclick="addComponent()">+ Добавить комплектующее</button>
                             </div>
                             <div class="page-content">
-                                <div class="table-container">
-                                    <table class="data-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Тип</th>
-                                                <th>Серийный номер</th>
-                                                <th>ID устройства</th>
-                                                <th>Кто проверил</th>
-                                                <th>Дата проверки</th>
-                                                <th>Действия</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="components-list"></tbody>
-                                    </table>
-                                </div>
+                                <div id="components-list"></div>
                             </div>
                         </div>
                     `;
@@ -204,23 +153,12 @@
                 case 'production-places':
                     content = `
                         <div class="production-places-page">
-                            <div class="page-header">
+                            <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
                                 <h1>МЕСТА ПРОИЗВОДСТВА</h1>
                                 <button class="add-button" onclick="addProductionPlace()">+ Добавить место</button>
                             </div>
                             <div class="page-content">
-                                <div class="table-container">
-                                    <table class="data-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Код</th>
-                                                <th>Название</th>
-                                                <th>Действия</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="production-places-list"></tbody>
-                                    </table>
-                                </div>
+                                <div id="production-places-list"></div>
                             </div>
                         </div>
                     `;
@@ -233,42 +171,42 @@
                                 <h1>СТРУКТУРА СЕРИЙНЫХ НОМЕРОВ</h1>
                             </div>
                             <div class="page-content">
-                                <div class="current-format">
+                                <div class="current-format" style="background: var(--bg-soft); padding: 1.5rem; border-radius: var(--radius-md); margin-bottom: 2rem; text-align: center;">
                                     <h3>ТЕКУЩИЙ ФОРМАТ:</h3>
-                                    <div class="format-display">RS 10 10 16 03 0001</div>
+                                    <div style="font-family: monospace; font-size: 1.8rem; color: var(--primary);">RS 10 10 16 03 0001</div>
                                 </div>
                                 <div class="explanation">
                                     <h4>Расшифровка структуры:</h4>
-                                    <div class="explanation-grid">
-                                        <div class="explanation-item">
-                                            <span class="segment-name">Тип устройства</span>
-                                            <span class="segment-preview">RS</span>
-                                            <span class="segment-description">2 буквы, тип устройства</span>
+                                    <div class="explanation-grid" style="display: grid; gap: 0.8rem;">
+                                        <div style="display: grid; grid-template-columns: 150px 80px 1fr; align-items: center; gap: 1rem; padding: 0.8rem 1rem; background: var(--bg-soft); border-radius: var(--radius-md); border-left: 4px solid var(--primary);">
+                                            <span style="font-weight: 600;">Тип устройства</span>
+                                            <span style="font-family: monospace; background: var(--bg-white); border: 1px solid var(--border-light); padding: 0.4rem 0.8rem; border-radius: var(--radius-full); text-align: center;">RS</span>
+                                            <span>2 буквы, тип устройства</span>
                                         </div>
-                                        <div class="explanation-item">
-                                            <span class="segment-name">Тип конфигурации</span>
-                                            <span class="segment-preview">10</span>
-                                            <span class="segment-description">2 цифры, конфигурация</span>
+                                        <div style="display: grid; grid-template-columns: 150px 80px 1fr; align-items: center; gap: 1rem; padding: 0.8rem 1rem; background: var(--bg-soft); border-radius: var(--radius-md); border-left: 4px solid var(--primary);">
+                                            <span style="font-weight: 600;">Тип конфигурации</span>
+                                            <span style="font-family: monospace; background: var(--bg-white); border: 1px solid var(--border-light); padding: 0.4rem 0.8rem; border-radius: var(--radius-full); text-align: center;">10</span>
+                                            <span>2 цифры, конфигурация</span>
                                         </div>
-                                        <div class="explanation-item">
-                                            <span class="segment-name">Код производства</span>
-                                            <span class="segment-preview">10</span>
-                                            <span class="segment-description">2 цифры, код цеха</span>
+                                        <div style="display: grid; grid-template-columns: 150px 80px 1fr; align-items: center; gap: 1rem; padding: 0.8rem 1rem; background: var(--bg-soft); border-radius: var(--radius-md); border-left: 4px solid var(--primary);">
+                                            <span style="font-weight: 600;">Код производства</span>
+                                            <span style="font-family: monospace; background: var(--bg-white); border: 1px solid var(--border-light); padding: 0.4rem 0.8rem; border-radius: var(--radius-full); text-align: center;">10</span>
+                                            <span>2 цифры, код цеха</span>
                                         </div>
-                                        <div class="explanation-item">
-                                            <span class="segment-name">Год выпуска</span>
-                                            <span class="segment-preview">16</span>
-                                            <span class="segment-description">2 цифры, год</span>
+                                        <div style="display: grid; grid-template-columns: 150px 80px 1fr; align-items: center; gap: 1rem; padding: 0.8rem 1rem; background: var(--bg-soft); border-radius: var(--radius-md); border-left: 4px solid var(--primary);">
+                                            <span style="font-weight: 600;">Год выпуска</span>
+                                            <span style="font-family: monospace; background: var(--bg-white); border: 1px solid var(--border-light); padding: 0.4rem 0.8rem; border-radius: var(--radius-full); text-align: center;">16</span>
+                                            <span>2 цифры, год</span>
                                         </div>
-                                        <div class="explanation-item">
-                                            <span class="segment-name">Месяц выпуска</span>
-                                            <span class="segment-preview">03</span>
-                                            <span class="segment-description">2 цифры, месяц</span>
+                                        <div style="display: grid; grid-template-columns: 150px 80px 1fr; align-items: center; gap: 1rem; padding: 0.8rem 1rem; background: var(--bg-soft); border-radius: var(--radius-md); border-left: 4px solid var(--primary);">
+                                            <span style="font-weight: 600;">Месяц выпуска</span>
+                                            <span style="font-family: monospace; background: var(--bg-white); border: 1px solid var(--border-light); padding: 0.4rem 0.8rem; border-radius: var(--radius-full); text-align: center;">03</span>
+                                            <span>2 цифры, месяц</span>
                                         </div>
-                                        <div class="explanation-item">
-                                            <span class="segment-name">Порядковый номер</span>
-                                            <span class="segment-preview">0001</span>
-                                            <span class="segment-description">4 цифры, номер</span>
+                                        <div style="display: grid; grid-template-columns: 150px 80px 1fr; align-items: center; gap: 1rem; padding: 0.8rem 1rem; background: var(--bg-soft); border-radius: var(--radius-md); border-left: 4px solid var(--primary);">
+                                            <span style="font-weight: 600;">Порядковый номер</span>
+                                            <span style="font-family: monospace; background: var(--bg-white); border: 1px solid var(--border-light); padding: 0.4rem 0.8rem; border-radius: var(--radius-full); text-align: center;">0001</span>
+                                            <span>4 цифры, номер</span>
                                         </div>
                                     </div>
                                 </div>
@@ -287,6 +225,12 @@
                         </div>
                     `;
                     break;
+                    
+                default:
+                    content = `
+                        <h3>Добро пожаловать</h3>
+                        <p>Выберите раздел в боковом меню для работы с системой.</p>
+                    `;
             }
 
             contentArea.innerHTML = content;
@@ -304,16 +248,19 @@
             setTimeout(() => {
                 switch(contentType) {
                     case 'devices':
-                        if (typeof loadDevices === 'function') loadDevices();
+                        if (typeof loadDevices === 'function') {
+                            loadDevices();
+                            setTimeout(() => updateDeviceTypeFilter(), 500);
+                        }
                         break;
                     case 'product-types':
                         if (typeof loadProductTypes === 'function') loadProductTypes();
                         break;
-                    case 'production-places':
-                        if (typeof loadProductionPlaces === 'function') loadProductionPlaces();
-                        break;
                     case 'components':
                         if (typeof loadComponents === 'function') loadComponents();
+                        break;
+                    case 'production-places':
+                        if (typeof loadProductionPlaces === 'function') loadProductionPlaces();
                         break;
                     case 'statistic':
                         if (typeof loadStatistics === 'function') loadStatistics();
@@ -328,72 +275,6 @@
             let content = '';
 
             switch(contentType) {
-                case 'employees':
-                    content = `
-                        <div class="employees-page">
-                            <div class="page-header">
-                                <h1>СОТРУДНИКИ</h1>
-                                <button class="add-button" onclick="addEmployee()">+ Добавить сотрудника</button>
-                            </div>
-                            <div class="page-content">
-                                <div class="table-container">
-                                    <table class="data-table">
-                                        <thead>
-                                            <tr>
-                                                <th>ФИО</th>
-                                                <th>Должность</th>
-                                                <th>Логин</th>
-                                                <th>Роль</th>
-                                                <th>Действия</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="employees-list"></tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    break;
-                case 'about':
-                    content = `
-                        <div class="about-page">
-                            <div class="page-header">
-                                <h1>О ПРОГРАММЕ</h1>
-                            </div>
-                            <div class="page-content about-content">
-                                <div class="about-card">
-                                    <h2>Дипломный проект</h2>
-                                    <p>Данная информационная система представляет собой дипломный проект, выполненный студенткой группы 405ИС-22 Курбатовой Марией Владимировной.</p>
-                                    <p>Проект посвящен разработке автоматизированной системы управления производственным процессом на предприятии.</p>
-                                </div>
-                                <div class="about-card developer-card">
-                                    <h3>О разработчике</h3>
-                                    <div class="developer-info">
-                                        <div class="info-row">
-                                            <span class="info-label">Студент:</span>
-                                            <span class="info-value">Курбатова Мария Владимировна</span>
-                                        </div>
-                                        <div class="info-row">
-                                            <span class="info-label">Группа:</span>
-                                            <span class="info-value">405ИС-22</span>
-                                        </div>
-                                        <div class="info-row">
-                                            <span class="info-label">Учебное заведение:</span>
-                                            <span class="info-value">КМПО РАНХиГС</span>
-                                        </div>
-                                        <div class="info-row">
-                                            <span class="info-label">Год:</span>
-                                            <span class="info-value">2026</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="about-card copyright">
-                                    <p>© 2026 Все права защищены.</p>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    break;
                 case 'profile':
                     content = `
                         <div class="profile-page">
@@ -402,74 +283,46 @@
                             </div>
                             <div class="page-content">
                                 <div class="profile-card">
-                                    <div class="profile-avatar">
-                                        <span class="avatar-initials">А</span>
-                                    </div>
-                                    <div class="profile-details">
+                                    <div class="profile-header">
+                                        <div class="profile-avatar">А</div>
                                         <h2>Администратор Системы</h2>
-                                        <p class="profile-position">Главный администратор</p>
+                                        <p>Главный администратор</p>
                                     </div>
-                                </div>
-                                
-                                <div class="profile-sections">
-                                    <div class="profile-section">
-                                        <h3>Личная информация</h3>
-                                        <div class="profile-info-grid">
-                                            <div class="info-item">
-                                                <span class="info-label">Фамилия:</span>
-                                                <span class="info-value">Администратор</span>
+                                    <div class="profile-body">
+                                        <div class="profile-section">
+                                            <h3>Личная информация</h3>
+                                            <div class="profile-row">
+                                                <span class="profile-label">ФИО:</span>
+                                                <span class="profile-value">Администратор Системы</span>
                                             </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Имя:</span>
-                                                <span class="info-value">Главный</span>
+                                            <div class="profile-row">
+                                                <span class="profile-label">Должность:</span>
+                                                <span class="profile-value">Главный администратор</span>
                                             </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Отчество:</span>
-                                                <span class="info-value">Системович</span>
+                                            <div class="profile-row">
+                                                <span class="profile-label">Email:</span>
+                                                <span class="profile-value">admin@istok.ru</span>
                                             </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Должность:</span>
-                                                <span class="info-value">Главный администратор</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Логин:</span>
-                                                <span class="info-value">admin</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Роль:</span>
-                                                <span class="info-value"><span class="role-badge admin">Администратор</span></span>
+                                            <div class="profile-row">
+                                                <span class="profile-label">Логин:</span>
+                                                <span class="profile-value">admin</span>
                                             </div>
                                         </div>
-                                    </div>
-                                    
-                                    <div class="profile-section">
-                                        <h3>Контактная информация</h3>
-                                        <div class="profile-info-grid">
-                                            <div class="info-item">
-                                                <span class="info-label">Email:</span>
-                                                <span class="info-value">admin@istok.ru</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Телефон:</span>
-                                                <span class="info-value">+7 (495) 123-45-67</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="profile-section">
-                                        <h3>Статистика активности</h3>
-                                        <div class="profile-stats">
-                                            <div class="stat-item">
-                                                <span class="stat-value">15.01.2023</span>
-                                                <span class="stat-label">Дата регистрации</span>
-                                            </div>
-                                            <div class="stat-item">
-                                                <span class="stat-value">Сегодня</span>
-                                                <span class="stat-label">Последний вход</span>
-                                            </div>
-                                            <div class="stat-item">
-                                                <span class="stat-value">127</span>
-                                                <span class="stat-label">Действий выполнено</span>
+                                        <div class="profile-section">
+                                            <h3>Статистика активности</h3>
+                                            <div class="profile-stats">
+                                                <div class="stat-item">
+                                                    <div class="stat-value">15.01.2023</div>
+                                                    <div class="stat-label">В системе с</div>
+                                                </div>
+                                                <div class="stat-item">
+                                                    <div class="stat-value">Сегодня</div>
+                                                    <div class="stat-label">Последний вход</div>
+                                                </div>
+                                                <div class="stat-item">
+                                                    <div class="stat-value">127</div>
+                                                    <div class="stat-label">Действий</div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -478,6 +331,92 @@
                         </div>
                     `;
                     break;
+                    
+                case 'employees':
+                    content = `
+                        <div class="employees-page">
+                            <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <h1>СОТРУДНИКИ</h1>
+                                <button class="add-button" onclick="addEmployee()">+ Добавить сотрудника</button>
+                            </div>
+                            <div class="page-content">
+                                <div id="employees-list"></div>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'about':
+                    content = `
+                        <div class="about-page">
+                            <div class="page-header">
+                                <h1>О ПРОГРАММЕ</h1>
+                            </div>
+                            <div class="page-content">
+                                <div class="profile-card">
+                                    <div class="profile-header">
+                                        <div class="profile-avatar">Д</div>
+                                        <h2>Дипломный проект</h2>
+                                        <p>Курбатова Мария Владимировна</p>
+                                    </div>
+                                    <div class="profile-body">
+                                        <div class="profile-section">
+                                            <h3>О проекте</h3>
+                                            <p style="line-height: 1.6; color: var(--text-secondary); margin-bottom: 1rem;">
+                                                Данная информационная система представляет собой дипломный проект, 
+                                                выполненный студенткой группы 405ИС-22 Курбатовой Марией Владимировной.
+                                            </p>
+                                            <p style="line-height: 1.6; color: var(--text-secondary);">
+                                                Проект посвящен разработке автоматизированной системы управления 
+                                                производственным процессом на предприятии. Система позволяет отслеживать 
+                                                все этапы производства устройств, вести учет комплектующих, управлять 
+                                                персоналом и анализировать производственные показатели.
+                                            </p>
+                                        </div>
+                                        <div class="profile-section">
+                                            <h3>О разработчике</h3>
+                                            <div class="profile-row">
+                                                <span class="profile-label">Студент:</span>
+                                                <span class="profile-value">Курбатова Мария Владимировна</span>
+                                            </div>
+                                            <div class="profile-row">
+                                                <span class="profile-label">Группа:</span>
+                                                <span class="profile-value">405ИС-22</span>
+                                            </div>
+                                            <div class="profile-row">
+                                                <span class="profile-label">Учебное заведение:</span>
+                                                <span class="profile-value">КМПО РАНХиГС</span>
+                                            </div>
+                                            <div class="profile-row">
+                                                <span class="profile-label">Год окончания:</span>
+                                                <span class="profile-value">2026</span>
+                                            </div>
+                                        </div>
+                                        <div class="profile-section">
+                                            <h3>Техническая реализация</h3>
+                                            <div class="profile-row">
+                                                <span class="profile-label">Frontend:</span>
+                                                <span class="profile-value">HTML5, CSS3, JavaScript</span>
+                                            </div>
+                                            <div class="profile-row">
+                                                <span class="profile-label">Backend:</span>
+                                                <span class="profile-value">Node.js, Express</span>
+                                            </div>
+                                            <div class="profile-row">
+                                                <span class="profile-label">База данных:</span>
+                                                <span class="profile-value">MySQL</span>
+                                            </div>
+                                        </div>
+                                        <div style="text-align: center; margin-top: 2rem; color: var(--text-tertiary);">
+                                            <p>© 2026 Курбатова Мария Владимировна. Все права защищены.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                    
                 case 'settings':
                     content = `
                         <div class="settings-page">
@@ -485,45 +424,46 @@
                                 <h1>НАСТРОЙКИ СИСТЕМЫ</h1>
                             </div>
                             <div class="page-content">
-                                <div class="settings-grid">
-                                    <div class="settings-card">
-                                        <h3>Тема оформления</h3>
-                                        <div class="setting-item">
-                                            <span class="setting-label">Темная тема</span>
-                                            <label class="switch">
-                                                <input type="checkbox" onchange="toggleTheme()" ${document.body.classList.contains('theme-dark') ? 'checked' : ''}>
-                                                <span class="slider round"></span>
-                                            </label>
+                                <div class="profile-card">
+                                    <div class="profile-body">
+                                        <div class="profile-section">
+                                            <h3>Тема оформления</h3>
+                                            <div class="profile-row">
+                                                <span class="profile-label">Темная тема</span>
+                                                <span class="profile-value">
+                                                    <input type="checkbox" onchange="toggleTheme()" ${document.body.classList.contains('theme-dark') ? 'checked' : ''}>
+                                                </span>
+                                            </div>
                                         </div>
-                                    </div>
-                                    
-                                    <div class="settings-card">
-                                        <h3>Язык интерфейса</h3>
-                                        <div class="setting-item">
-                                            <span class="setting-label">Русский</span>
-                                            <input type="radio" name="language" checked class="radio-custom">
+                                        <div class="profile-section">
+                                            <h3>Язык интерфейса</h3>
+                                            <div class="profile-row">
+                                                <span class="profile-label">Русский</span>
+                                                <span class="profile-value">
+                                                    <input type="radio" name="language" checked>
+                                                </span>
+                                            </div>
+                                            <div class="profile-row">
+                                                <span class="profile-label">English</span>
+                                                <span class="profile-value">
+                                                    <input type="radio" name="language">
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div class="setting-item">
-                                            <span class="setting-label">English</span>
-                                            <input type="radio" name="language" class="radio-custom">
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="settings-card">
-                                        <h3>Уведомления</h3>
-                                        <div class="setting-item">
-                                            <span class="setting-label">Звуковые уведомления</span>
-                                            <label class="switch">
-                                                <input type="checkbox" checked>
-                                                <span class="slider round"></span>
-                                            </label>
-                                        </div>
-                                        <div class="setting-item">
-                                            <span class="setting-label">Уведомления о новых устройствах</span>
-                                            <label class="switch">
-                                                <input type="checkbox" checked>
-                                                <span class="slider round"></span>
-                                            </label>
+                                        <div class="profile-section">
+                                            <h3>Уведомления</h3>
+                                            <div class="profile-row">
+                                                <span class="profile-label">Email уведомления</span>
+                                                <span class="profile-value">
+                                                    <input type="checkbox" checked>
+                                                </span>
+                                            </div>
+                                            <div class="profile-row">
+                                                <span class="profile-label">Системные уведомления</span>
+                                                <span class="profile-value">
+                                                    <input type="checkbox" checked>
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -540,9 +480,11 @@
             topTabs.forEach(tab => tab.classList.remove('active'));
             event.currentTarget.classList.add('active');
 
-            // Загружаем данные для сотрудников
-            if (contentType === 'employees' && typeof loadEmployees === 'function') {
-                setTimeout(() => loadEmployees(), 100);
+            // Загружаем данные для сотрудников если нужно
+            if (contentType === 'employees') {
+                setTimeout(() => {
+                    if (typeof loadEmployees === 'function') loadEmployees();
+                }, 100);
             }
         }
 
@@ -552,13 +494,6 @@
                 window.location.href = '/';
             }
         }
-
-        // Функция фильтрации устройств
-        window.filterDevices = function() {
-            if (typeof window.filterDevicesImpl === 'function') {
-                window.filterDevicesImpl();
-            }
-        };
 
         // Временные заглушки для функций
         window.addDevice = function() { console.log('Функция addDevice будет доступна после загрузки dashboard.js'); };
@@ -570,8 +505,11 @@
         window.loadEmployees = function() { console.log('Функция loadEmployees будет доступна после загрузки dashboard.js'); };
         window.loadProductTypes = function() { console.log('Функция loadProductTypes будет доступна после загрузки dashboard.js'); };
         window.loadProductionPlaces = function() { console.log('Функция loadProductionPlaces будет доступна после загрузки dashboard.js'); };
-        window.loadComponents = function() { console.log('Функция loadComponents будет доступна после загрузки dashboard.js'); };
         window.loadStatistics = function() { console.log('Функция loadStatistics будет доступна после загрузки dashboard.js'); };
+        window.loadComponents = function() { console.log('Функция loadComponents будет доступна после загрузки dashboard.js'); };
+        window.searchDevices = function() { console.log('Функция searchDevices будет доступна после загрузки dashboard.js'); };
+        window.filterDevicesByType = function() { console.log('Функция filterDevicesByType будет доступна после загрузки dashboard.js'); };
+        window.updateDeviceTypeFilter = function() { console.log('Функция updateDeviceTypeFilter будет доступна после загрузки dashboard.js'); };
     </script>
     
     <!-- Подключение основного JS с логикой -->
