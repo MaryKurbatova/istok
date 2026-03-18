@@ -17,7 +17,8 @@ const AppState = {
     assemblers: [],
     electricians: [],
     psiTests: [],
-    macs: []
+    macs: [],
+    deviceTypeMap: {} // Для маппинга device_id -> тип устройства
 };
 
 // ===== ИНИЦИАЛИЗАЦИЯ =====
@@ -925,14 +926,21 @@ async function deleteEmployee(id) {
 }
 
 // ===== ФУНКЦИИ ДЛЯ КОМПЛЕКТУЮЩИХ =====
+let allComponents = []; // Для хранения всех загруженных комплектующих
+
 async function loadComponents() {
     console.log('🔧 loadComponents вызвана');
     try {
         const response = await fetch('/api/components');
         if (response.ok) {
-            const components = await response.json();
-            console.log('✅ Комплектующие загружены:', components.length);
-            renderComponentsTable(components);
+            allComponents = await response.json();
+            console.log('✅ Комплектующие загружены:', allComponents.length);
+            
+            // Загружаем устройства для сопоставления типов
+            await loadDevicesForComponents();
+            
+            // Отображаем все комплектующие по умолчанию
+            renderComponentsTable(allComponents, 'all');
         } else {
             console.error('❌ Ошибка загрузки комплектующих:', response.status);
             showNotification('Ошибка загрузки комплектующих', 'error');
@@ -943,22 +951,91 @@ async function loadComponents() {
     }
 }
 
-function renderComponentsTable(components) {
+async function loadDevicesForComponents() {
+    try {
+        const response = await fetch('/api/devices');
+        if (response.ok) {
+            AppState.devices = await response.json();
+            
+            // Создаем маппинг device_id -> device_type
+            AppState.deviceTypeMap = {};
+            AppState.devices.forEach(device => {
+                AppState.deviceTypeMap[device.id] = {
+                    type: device.device_type_code || 'unknown',
+                    name: device.device_type_name || 'Неизвестно'
+                };
+            });
+            
+            console.log('✅ Устройства для комплектующих загружены');
+        }
+    } catch (error) {
+        console.error('❌ Ошибка загрузки устройств:', error);
+    }
+}
+
+function filterComponentsByType(deviceType) {
+    console.log(`🔍 Фильтрация комплектующих по типу: ${deviceType}`);
+    
+    // Обновляем активную вкладку
+    const tabs = document.querySelectorAll('.component-tab');
+    tabs.forEach(tab => {
+        tab.classList.remove('active');
+        if (deviceType === 'all' && tab.textContent.toLowerCase().includes('все')) {
+            tab.classList.add('active');
+        } else if (deviceType === 'RS' && tab.textContent.toLowerCase().includes('сервисные')) {
+            tab.classList.add('active');
+        } else if (deviceType === 'RB' && tab.textContent.toLowerCase().includes('граничные')) {
+            tab.classList.add('active');
+        } else if (deviceType === 'SA' && tab.textContent.toLowerCase().includes('коммутаторы')) {
+            tab.classList.add('active');
+        }
+    });
+    
+    if (deviceType === 'all') {
+        renderComponentsTable(allComponents, 'all');
+        return;
+    }
+    
+    // Фильтруем комплектующие по типу устройства
+    const filteredComponents = allComponents.filter(component => {
+        if (!component.device_id) return false;
+        
+        const deviceInfo = AppState.deviceTypeMap[component.device_id];
+        return deviceInfo && deviceInfo.type === deviceType;
+    });
+    
+    renderComponentsTable(filteredComponents, deviceType);
+}
+
+function renderComponentsTable(components, filterType = 'all') {
     const container = document.getElementById('components-list');
     if (!container) return;
     
     if (components.length === 0) {
-        container.innerHTML = '<div class="empty-state">Нет комплектующих</div>';
+        let message = 'Нет комплектующих';
+        if (filterType === 'RS') message = 'Нет комплектующих для сервисных маршрутизаторов';
+        else if (filterType === 'RB') message = 'Нет комплектующих для граничных маршрутизаторов';
+        else if (filterType === 'SA') message = 'Нет комплектующих для коммутаторов доступа';
+        
+        container.innerHTML = `<div class="empty-state">${message}</div>`;
         return;
     }
     
-    let html = '<div class="table-container"><table class="data-table">';
+    let html = '';
+    
+    // Добавляем информацию о количестве для фильтрованных представлений
+    if (filterType !== 'all') {
+        html += `<div class="filter-info"><p>Найдено комплектующих: ${components.length}</p></div>`;
+    }
+    
+    html += '<div class="table-container"><table class="data-table">';
     html += `
         <thead>
             <tr>
                 <th>Тип</th>
                 <th>Наименование</th>
-                <th>ID устройства</th>
+                <th>Устройство</th>
+                <th>Тип устройства</th>
                 <th>Проверил</th>
                 <th>Действия</th>
             </tr>
@@ -967,11 +1044,27 @@ function renderComponentsTable(components) {
     `;
     
     components.forEach(comp => {
+        // Получаем информацию об устройстве
+        const deviceInfo = comp.device_id ? AppState.deviceTypeMap[comp.device_id] : null;
+        const deviceSerial = comp.device_id ? 
+            AppState.devices.find(d => d.id === comp.device_id)?.product_serial_number : null;
+        
+        let deviceTypeDisplay = '—';
+        if (deviceInfo) {
+            switch(deviceInfo.type) {
+                case 'RS': deviceTypeDisplay = 'Сервисный маршрутизатор'; break;
+                case 'RB': deviceTypeDisplay = 'Граничный маршрутизатор'; break;
+                case 'SA': deviceTypeDisplay = 'Коммутатор доступа'; break;
+                default: deviceTypeDisplay = deviceInfo.name;
+            }
+        }
+        
         html += `
             <tr data-id="${comp.id}" data-type="${comp.type}">
                 <td><span class="status-badge info">${comp.type}</span></td>
                 <td><strong>${comp.name}</strong></td>
-                <td>${comp.device_id || '—'}</td>
+                <td>${deviceSerial || '—'}</td>
+                <td>${deviceTypeDisplay}</td>
                 <td>${comp.author || '—'}</td>
                 <td class="table-actions">
                     <button class="delete-btn" onclick="deleteComponent(${comp.id}, '${comp.type}')">✕</button>
@@ -982,7 +1075,7 @@ function renderComponentsTable(components) {
     
     html += '</tbody></table></div>';
     container.innerHTML = html;
-    console.log('✅ Таблица комплектующих отрендерена');
+    console.log(`✅ Таблица комплектующих отрендерена (фильтр: ${filterType})`);
 }
 
 async function addComponent() {
@@ -1017,7 +1110,7 @@ async function addComponent() {
                         <label>ID устройства (необязательно)</label>
                         <select id="modal-component-device">
                             <option value="">Не привязывать к устройству</option>
-                            ${devices.map(d => `<option value="${d.id}">${d.product_serial_number || 'Без номера'}</option>`).join('')}
+                            ${devices.map(d => `<option value="${d.id}">${d.product_serial_number || 'Без номера'} (${d.device_type_name || 'Неизвестно'})</option>`).join('')}
                         </select>
                     </div>
                     <div class="form-group" id="modal-author-group" style="display: none;">
@@ -1075,7 +1168,19 @@ async function saveComponent() {
         if (response.ok) {
             showNotification('✅ Комплектующее добавлено', 'success');
             closeModal(document.querySelector('.modal-close'));
+            
+            // Перезагружаем комплектующие
             await loadComponents();
+            
+            // Восстанавливаем активный фильтр
+            const activeTab = document.querySelector('.component-tab.active');
+            if (activeTab) {
+                const tabText = activeTab.textContent;
+                if (tabText.includes('Сервисные')) filterComponentsByType('RS');
+                else if (tabText.includes('Граничные')) filterComponentsByType('RB');
+                else if (tabText.includes('Коммутаторы')) filterComponentsByType('SA');
+                else filterComponentsByType('all');
+            }
         } else {
             const error = await response.json();
             showNotification(error.error || 'Ошибка при добавлении', 'error');
@@ -1097,6 +1202,16 @@ async function deleteComponent(id, type) {
         if (response.ok) {
             showNotification('✅ Комплектующее удалено', 'success');
             await loadComponents();
+            
+            // Восстанавливаем активный фильтр
+            const activeTab = document.querySelector('.component-tab.active');
+            if (activeTab) {
+                const tabText = activeTab.textContent;
+                if (tabText.includes('Сервисные')) filterComponentsByType('RS');
+                else if (tabText.includes('Граничные')) filterComponentsByType('RB');
+                else if (tabText.includes('Коммутаторы')) filterComponentsByType('SA');
+                else filterComponentsByType('all');
+            }
         } else {
             showNotification('❌ Ошибка при удалении', 'error');
         }
@@ -1404,6 +1519,12 @@ async function showContent(contentType) {
                     <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
                         <h1>КОМПЛЕКТУЮЩИЕ</h1>
                         <button class="add-button" onclick="addComponent()">+ Добавить комплектующее</button>
+                    </div>
+                    <div class="components-tabs">
+                        <button class="component-tab active" onclick="filterComponentsByType('all')">Все</button>
+                        <button class="component-tab" onclick="filterComponentsByType('RS')">Сервисные маршрутизаторы</button>
+                        <button class="component-tab" onclick="filterComponentsByType('RB')">Граничные маршрутизаторы</button>
+                        <button class="component-tab" onclick="filterComponentsByType('SA')">Коммутаторы доступа</button>
                     </div>
                     <div class="page-content">
                         <div id="components-list"></div>
@@ -1801,6 +1922,7 @@ window.addComponent = addComponent;
 window.saveComponent = saveComponent;
 window.deleteComponent = deleteComponent;
 window.loadComponents = loadComponents;
+window.filterComponentsByType = filterComponentsByType;
 
 // Статистика
 window.loadStatistics = loadStatistics;

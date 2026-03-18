@@ -1063,3 +1063,81 @@ html, body {
 .page-content {
     height: 100%;
 }
+
+/* ===== ПОДВКЛАДКИ ДЛЯ КОМПЛЕКТУЮЩИХ ===== */
+.components-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin: 1.5rem 0 1rem;
+    padding: 0.5rem;
+    background: var(--bg-white);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-light);
+    flex-wrap: wrap;
+}
+
+.component-tab {
+    padding: 0.6rem 1.5rem;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: var(--transition);
+}
+
+.component-tab:hover {
+    background: var(--bg-soft);
+    color: var(--primary);
+    border-color: var(--primary-light);
+}
+
+.component-tab.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.filter-info {
+    background: var(--bg-soft);
+    padding: 0.8rem 1.2rem;
+    border-radius: var(--radius-md);
+    margin-bottom: 1rem;
+    border-left: 4px solid var(--primary);
+}
+
+.filter-info p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* Обновляем стили таблицы для лучшего отображения */
+.data-table th {
+    white-space: nowrap;
+}
+
+.data-table td {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+    .components-tabs {
+        flex-direction: column;
+    }
+    
+    .component-tab {
+        width: 100%;
+        text-align: center;
+    }
+    
+    .data-table td {
+        max-width: 150px;
+    }
+}
