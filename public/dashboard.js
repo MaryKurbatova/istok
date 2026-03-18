@@ -22,7 +22,7 @@ const AppState = {
 
 // ===== ИНИЦИАЛИЗАЦИЯ =====
 document.addEventListener('DOMContentLoaded', async function() {
-    console.log('📢 DOM загружен');
+    console.log('📢 dashboard.js загружен');
     
     // Загрузка темы
     if (AppState.currentTheme === 'dark') {
@@ -31,9 +31,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // Загружаем справочные данные
     await loadReferenceData();
-    
-    // Показываем контент по умолчанию (устройства)
-    showContent('devices');
     
     // Добавляем стили для модальных окон
     addModalStyles();
@@ -67,153 +64,32 @@ async function loadReferenceData() {
 
 // ===== СТИЛИ ДЛЯ МОДАЛЬНЫХ ОКОН =====
 function addModalStyles() {
-    const style = document.createElement('style');
-    style.textContent = `
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            animation: fadeIn 0.3s ease;
-        }
-        
-        .modal-container {
-            background: var(--bg-white);
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-lg);
-            width: 90%;
-            max-width: 600px;
-            max-height: 90vh;
-            overflow-y: auto;
-            border: 1px solid var(--border-light);
-            animation: slideUp 0.3s ease;
-        }
-        
-        .modal-header {
-            padding: 1.5rem;
-            border-bottom: 1px solid var(--border-light);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: sticky;
-            top: 0;
-            background: var(--bg-white);
-            z-index: 1;
-        }
-        
-        .modal-header h3 {
-            margin: 0;
-            color: var(--primary);
-        }
-        
-        .modal-close {
-            background: transparent;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: var(--text-tertiary);
-            transition: var(--transition);
-        }
-        
-        .modal-close:hover {
-            color: var(--danger);
-        }
-        
-        .modal-content {
-            padding: 1.5rem;
-        }
-        
-        .modal-footer {
-            padding: 1.5rem;
-            border-top: 1px solid var(--border-light);
-            display: flex;
-            justify-content: flex-end;
-            gap: 1rem;
-            position: sticky;
-            bottom: 0;
-            background: var(--bg-white);
-        }
-        
-        .modal-footer button {
-            padding: 0.6rem 1.5rem;
-            border-radius: var(--radius-full);
-            cursor: pointer;
-            font-size: 0.9rem;
-            font-weight: 500;
-            transition: var(--transition);
-        }
-        
-        .modal-footer .btn-cancel {
-            background: var(--bg-soft);
-            color: var(--text-secondary);
-            border: 1px solid var(--border-light);
-        }
-        
-        .modal-footer .btn-cancel:hover {
-            background: var(--text-tertiary);
-            color: white;
-        }
-        
-        .modal-footer .btn-save {
-            background: var(--primary);
-            color: white;
-            border: 1px solid var(--primary);
-        }
-        
-        .modal-footer .btn-save:hover {
-            background: var(--primary-dark);
-        }
-        
-        .grid-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-        }
-        
-        .info-row {
-            display: flex;
-            margin-bottom: 0.5rem;
-            padding: 0.5rem;
-            background: var(--bg-soft);
-            border-radius: var(--radius-sm);
-        }
-        
-        .info-label {
-            width: 150px;
-            font-weight: 500;
-            color: var(--text-tertiary);
-        }
-        
-        .info-value {
-            flex: 1;
-            color: var(--text-primary);
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 3rem;
-            color: var(--text-tertiary);
-            font-style: italic;
-        }
-        
-        @keyframes slideUp {
-            from {
-                transform: translateY(50px);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-    `;
-    document.head.appendChild(style);
+    // Стили уже есть в dashboard.css
+}
+
+// ===== ФУНКЦИЯ ДЛЯ ОПРЕДЕЛЕНИЯ ИЗОБРАЖЕНИЯ ПО МОДЕЛИ =====
+function getDeviceImage(deviceType) {
+    if (!deviceType) return '/images/default.png';
+    
+    const type = deviceType.toLowerCase();
+    
+    if (type.includes('isn41508t3-m-ac')) {
+        return '/images/ISN41508T3-M-AC.png';
+    } else if (type.includes('isn41508t3-m')) {
+        return '/images/ISN41508T3-M.png';
+    } else if (type.includes('isn41508t3')) {
+        return '/images/ISN41508T3.png';
+    } else if (type.includes('isn41508t4')) {
+        return '/images/ISN41508T4.png';
+    } else if (type.includes('isn42124t5c4')) {
+        return '/images/ISN41508T3.png'; // Заглушка для коммутаторов
+    } else if (type.includes('isn42124t5p5')) {
+        return '/images/ISN41508T3-M.png'; // Заглушка для коммутаторов
+    } else if (type.includes('isn42124x5')) {
+        return '/images/ISN41508T4.png'; // Заглушка для коммутаторов
+    }
+    
+    return '/images/default.png';
 }
 
 // ===== ФУНКЦИИ ДЛЯ УСТРОЙСТВ =====
@@ -252,6 +128,7 @@ function renderDevicesTable() {
     html += `
         <thead>
             <tr>
+                <th>Изображение</th>
                 <th>Серийный номер</th>
                 <th>Тип</th>
                 <th>Модель</th>
@@ -267,9 +144,16 @@ function renderDevicesTable() {
     AppState.filteredDevices.forEach(device => {
         const statusClass = device.diag ? 'success' : 'danger';
         const statusText = device.diag ? 'Готов' : 'Проблема';
+        const imagePath = getDeviceImage(device.type);
         
         html += `
             <tr>
+                <td>
+                    <img src="${imagePath}" 
+                         alt="${device.type || 'Устройство'}" 
+                         style="width: 60px; height: 60px; object-fit: contain; border-radius: 4px; background: var(--bg-soft); padding: 4px;"
+                         onerror="this.src='/images/default.png'">
+                </td>
                 <td><strong>${device.product_serial_number || '—'}</strong></td>
                 <td>${device.device_type_name || '—'}</td>
                 <td>${device.type || '—'}</td>
@@ -339,6 +223,8 @@ async function showDeviceDetails(id) {
         console.error('Ошибка загрузки комплектующих:', error);
     }
     
+    const imagePath = getDeviceImage(device.type);
+    
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
@@ -348,6 +234,17 @@ async function showDeviceDetails(id) {
                 <button class="modal-close" onclick="closeModal(this)">×</button>
             </div>
             <div class="modal-content">
+                <div style="display: flex; align-items: center; gap: 2rem; margin-bottom: 1.5rem;">
+                    <img src="${imagePath}" 
+                         alt="${device.type || 'Устройство'}" 
+                         style="width: 120px; height: 120px; object-fit: contain; background: var(--bg-soft); padding: 8px; border-radius: 8px;"
+                         onerror="this.src='/images/default.png'">
+                    <div style="flex: 1;">
+                        <h2 style="margin: 0 0 0.5rem; color: var(--primary);">${device.product_serial_number || 'Без номера'}</h2>
+                        <p style="margin: 0; color: var(--text-secondary);">${device.type || ''}</p>
+                    </div>
+                </div>
+                
                 <div class="info-row">
                     <span class="info-label">Серийный номер:</span>
                     <span class="info-value">${device.product_serial_number || 'Не указан'}</span>
@@ -1457,7 +1354,7 @@ function showNotification(message, type = 'info') {
 }
 
 // ===== ОСНОВНАЯ ФУНКЦИЯ ОТОБРАЖЕНИЯ КОНТЕНТА =====
-window.showContent = async function(contentType) {
+async function showContent(contentType) {
     console.log('🔄 Переключение на вкладку:', contentType);
     AppState.currentContent = contentType;
     const contentArea = document.getElementById('content-area');
@@ -1631,10 +1528,10 @@ window.showContent = async function(contentType) {
                 break;
         }
     }, 100);
-};
+}
 
 // ===== ФУНКЦИИ ДЛЯ ПРОФИЛЯ И НАСТРОЕК =====
-window.showTopContent = function(contentType) {
+async function showTopContent(contentType) {
     console.log('🔄 Переключение на верхнюю вкладку:', contentType);
     AppState.currentTopContent = contentType;
     const contentArea = document.getElementById('content-area');
@@ -1844,7 +1741,13 @@ window.showTopContent = function(contentType) {
     // Обновляем активную кнопку в верхних вкладках
     const topTabs = document.querySelectorAll('.top-tab');
     topTabs.forEach(tab => tab.classList.remove('active'));
-    event.currentTarget.classList.add('active');
+    
+    // Находим активную вкладку по тексту
+    topTabs.forEach(tab => {
+        if (tab.textContent.trim().toLowerCase() === contentType) {
+            tab.classList.add('active');
+        }
+    });
 
     // Загружаем данные для сотрудников если нужно
     if (contentType === 'employees') {
@@ -1852,55 +1755,52 @@ window.showTopContent = function(contentType) {
             loadEmployees();
         }, 100);
     }
-};
+}
 
-// ===== ПЕРЕКЛЮЧЕНИЕ ТЕМЫ =====
-window.toggleTheme = function() {
-    const body = document.body;
-    if (body.classList.contains('theme-dark')) {
-        body.classList.remove('theme-dark');
-        localStorage.setItem('theme', 'light');
-    } else {
-        body.classList.add('theme-dark');
-        localStorage.setItem('theme', 'dark');
-    }
-};
+// ===== ЭКСПОРТ ФУНКЦИЙ В ГЛОБАЛЬНУЮ ОБЛАСТЬ =====
+// Основные функции
+window.showContent = showContent;
+window.showTopContent = showTopContent;
+window.closeModal = closeModal;
+window.showNotification = showNotification;
 
-// ===== ВЫХОД =====
-window.logout = function() {
-    if (confirm('Вы уверены, что хотите выйти?')) {
-        window.location.href = '/';
-    }
-};
-
-// Экспортируем функции в глобальную область
+// Устройства
 window.addDevice = addDevice;
 window.editDevice = editDevice;
 window.deleteDevice = deleteDevice;
 window.showDeviceDetails = showDeviceDetails;
-window.addEmployee = addEmployee;
-window.editEmployee = editEmployee;
-window.deleteEmployee = deleteEmployee;
-window.addProductType = addProductType;
-window.deleteProductType = deleteProductType;
-window.addProductionPlace = addProductionPlace;
-window.deleteProductionPlace = deleteProductionPlace;
-window.addComponent = addComponent;
-window.saveComponent = saveComponent;
-window.deleteComponent = deleteComponent;
-window.closeModal = closeModal;
 window.saveDevice = saveDevice;
 window.updateDevice = updateDevice;
-window.saveEmployee = saveEmployee;
-window.updateEmployee = updateEmployee;
-window.saveProductType = saveProductType;
-window.saveProductionPlace = saveProductionPlace;
 window.searchDevices = searchDevices;
 window.filterDevicesByType = filterDevicesByType;
 window.updateDeviceTypeFilter = updateDeviceTypeFilter;
 window.loadDevices = loadDevices;
+
+// Сотрудники
+window.addEmployee = addEmployee;
+window.editEmployee = editEmployee;
+window.deleteEmployee = deleteEmployee;
+window.saveEmployee = saveEmployee;
+window.updateEmployee = updateEmployee;
 window.loadEmployees = loadEmployees;
+
+// Типы изделий
+window.addProductType = addProductType;
+window.deleteProductType = deleteProductType;
+window.saveProductType = saveProductType;
 window.loadProductTypes = loadProductTypes;
+
+// Места производства
+window.addProductionPlace = addProductionPlace;
+window.deleteProductionPlace = deleteProductionPlace;
+window.saveProductionPlace = saveProductionPlace;
 window.loadProductionPlaces = loadProductionPlaces;
-window.loadStatistics = loadStatistics;
+
+// Комплектующие
+window.addComponent = addComponent;
+window.saveComponent = saveComponent;
+window.deleteComponent = deleteComponent;
 window.loadComponents = loadComponents;
+
+// Статистика
+window.loadStatistics = loadStatistics;

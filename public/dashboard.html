@@ -16,12 +16,12 @@
     <div class="dashboard-container">
         <!-- Боковые вкладки -->
         <div class="sidebar">
-            <button class="sidebar-tab active" onclick="showContent('devices')">Устройства</button>
-            <button class="sidebar-tab" onclick="showContent('product-types')">Типы изделий</button>
-            <button class="sidebar-tab" onclick="showContent('components')">Комплектующие</button>
-            <button class="sidebar-tab" onclick="showContent('production-places')">Места производства</button>
-            <button class="sidebar-tab" onclick="showContent('serial-structure')">Структура серийного номера</button>
-            <button class="sidebar-tab" onclick="showContent('statistic')">Статистика</button>
+            <button class="sidebar-tab active" onclick="window.showContent('devices')">Устройства</button>
+            <button class="sidebar-tab" onclick="window.showContent('product-types')">Типы изделий</button>
+            <button class="sidebar-tab" onclick="window.showContent('components')">Комплектующие</button>
+            <button class="sidebar-tab" onclick="window.showContent('production-places')">Места производства</button>
+            <button class="sidebar-tab" onclick="window.showContent('serial-structure')">Структура серийного номера</button>
+            <button class="sidebar-tab" onclick="window.showContent('statistic')">Статистика</button>
         </div>
 
         <!-- Основное содержание -->
@@ -33,44 +33,22 @@
                     <div class="user-role">Главный администратор</div>
                 </div>
                 <div class="top-tabs">
-                    <button class="top-tab active" onclick="showTopContent('profile')">Профиль</button>
-                    <button class="top-tab" onclick="showTopContent('employees')">Сотрудники</button>
-                    <button class="top-tab" onclick="showTopContent('about')">О программе</button>
-                    <button class="top-tab" onclick="showTopContent('settings')">Настройки</button>
-                    <button class="top-tab" onclick="logout()">Выйти</button>
+                    <button class="top-tab active" onclick="window.showTopContent('profile')">Профиль</button>
+                    <button class="top-tab" onclick="window.showTopContent('employees')">Сотрудники</button>
+                    <button class="top-tab" onclick="window.showTopContent('about')">О программе</button>
+                    <button class="top-tab" onclick="window.showTopContent('settings')">Настройки</button>
+                    <button class="top-tab" onclick="window.logout()">Выйти</button>
                 </div>
             </div>
 
             <div class="content-area" id="content-area">
-                <!-- Контент по умолчанию - Устройства -->
-                <div class="devices-page">
-                    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
-                        <h1>УСТРОЙСТВА</h1>
-                        <button class="add-button" onclick="addDevice()">+ Добавить устройство</button>
-                    </div>
-                    <div class="search-panel">
-                        <div class="search-input">
-                            <input type="text" id="deviceSearch" placeholder="Поиск по серийному номеру или модели...">
-                            <button onclick="searchDevices()">Найти</button>
-                        </div>
-                        <select class="filter-select" id="deviceTypeFilter" onchange="filterDevicesByType()">
-                            <option value="">Все типы</option>
-                        </select>
-                    </div>
-                    <div class="page-content">
-                        <div id="devices-list"></div>
-                    </div>
-                </div>
+                <!-- Контент будет загружен через JavaScript -->
             </div>
         </div>
     </div>
 
     <script>
-        // Сохраняем оригинальные функции
-        window.originalShowContent = window.showContent;
-        window.originalShowTopContent = window.showTopContent;
-
-        // Функция переключения темы
+        // Функция переключения темы (только эта функция остается в HTML)
         function toggleTheme() {
             const body = document.body;
             if (body.classList.contains('theme-dark')) {
@@ -82,6 +60,13 @@
             }
         }
 
+        // Функция выхода из системы
+        function logout() {
+            if (confirm('Вы уверены, что хотите выйти из системы?')) {
+                window.location.href = '/';
+            }
+        }
+
         // Загрузка сохраненной темы
         document.addEventListener('DOMContentLoaded', function() {
             const savedTheme = localStorage.getItem('theme');
@@ -90,426 +75,27 @@
             }
             
             // Показываем контент по умолчанию (устройства)
-            showContent('devices');
-        });
-
-        // Функция для отображения контента из бокового меню
-        function showContent(contentType) {
-            const contentArea = document.getElementById('content-area');
-            let content = '';
-
-            switch(contentType) {
-                case 'devices':
-                    content = `
-                        <div class="devices-page">
-                            <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
-                                <h1>УСТРОЙСТВА</h1>
-                                <button class="add-button" onclick="addDevice()">+ Добавить устройство</button>
-                            </div>
-                            <div class="search-panel">
-                                <div class="search-input">
-                                    <input type="text" id="deviceSearch" placeholder="Поиск по серийному номеру или модели...">
-                                    <button onclick="searchDevices()">Найти</button>
-                                </div>
-                                <select class="filter-select" id="deviceTypeFilter" onchange="filterDevicesByType()">
-                                    <option value="">Все типы</option>
-                                </select>
-                            </div>
-                            <div class="page-content">
-                                <div id="devices-list"></div>
-                            </div>
-                        </div>
-                    `;
-                    break;
-                    
-                case 'product-types':
-                    content = `
-                        <div class="product-types-page">
-                            <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
-                                <h1>ТИПЫ ИЗДЕЛИЙ</h1>
-                                <button class="add-button" onclick="addProductType()">+ Добавить тип</button>
-                            </div>
-                            <div class="page-content">
-                                <div id="product-types-list"></div>
-                            </div>
-                        </div>
-                    `;
-                    break;
-                    
-                case 'components':
-                    content = `
-                        <div class="components-page">
-                            <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
-                                <h1>КОМПЛЕКТУЮЩИЕ</h1>
-                                <button class="add-button" onclick="addComponent()">+ Добавить комплектующее</button>
-                            </div>
-                            <div class="page-content">
-                                <div id="components-list"></div>
-                            </div>
-                        </div>
-                    `;
-                    break;
-                    
-                case 'production-places':
-                    content = `
-                        <div class="production-places-page">
-                            <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
-                                <h1>МЕСТА ПРОИЗВОДСТВА</h1>
-                                <button class="add-button" onclick="addProductionPlace()">+ Добавить место</button>
-                            </div>
-                            <div class="page-content">
-                                <div id="production-places-list"></div>
-                            </div>
-                        </div>
-                    `;
-                    break;
-                    
-                case 'serial-structure':
-                    content = `
-                        <div class="serial-structure">
-                            <div class="page-header">
-                                <h1>СТРУКТУРА СЕРИЙНЫХ НОМЕРОВ</h1>
-                            </div>
-                            <div class="page-content">
-                                <div class="current-format" style="background: var(--bg-soft); padding: 1.5rem; border-radius: var(--radius-md); margin-bottom: 2rem; text-align: center;">
-                                    <h3>ТЕКУЩИЙ ФОРМАТ:</h3>
-                                    <div style="font-family: monospace; font-size: 1.8rem; color: var(--primary);">RS 10 10 16 03 0001</div>
-                                </div>
-                                <div class="explanation">
-                                    <h4>Расшифровка структуры:</h4>
-                                    <div class="explanation-grid" style="display: grid; gap: 0.8rem;">
-                                        <div style="display: grid; grid-template-columns: 150px 80px 1fr; align-items: center; gap: 1rem; padding: 0.8rem 1rem; background: var(--bg-soft); border-radius: var(--radius-md); border-left: 4px solid var(--primary);">
-                                            <span style="font-weight: 600;">Тип устройства</span>
-                                            <span style="font-family: monospace; background: var(--bg-white); border: 1px solid var(--border-light); padding: 0.4rem 0.8rem; border-radius: var(--radius-full); text-align: center;">RS</span>
-                                            <span>2 буквы, тип устройства</span>
-                                        </div>
-                                        <div style="display: grid; grid-template-columns: 150px 80px 1fr; align-items: center; gap: 1rem; padding: 0.8rem 1rem; background: var(--bg-soft); border-radius: var(--radius-md); border-left: 4px solid var(--primary);">
-                                            <span style="font-weight: 600;">Тип конфигурации</span>
-                                            <span style="font-family: monospace; background: var(--bg-white); border: 1px solid var(--border-light); padding: 0.4rem 0.8rem; border-radius: var(--radius-full); text-align: center;">10</span>
-                                            <span>2 цифры, конфигурация</span>
-                                        </div>
-                                        <div style="display: grid; grid-template-columns: 150px 80px 1fr; align-items: center; gap: 1rem; padding: 0.8rem 1rem; background: var(--bg-soft); border-radius: var(--radius-md); border-left: 4px solid var(--primary);">
-                                            <span style="font-weight: 600;">Код производства</span>
-                                            <span style="font-family: monospace; background: var(--bg-white); border: 1px solid var(--border-light); padding: 0.4rem 0.8rem; border-radius: var(--radius-full); text-align: center;">10</span>
-                                            <span>2 цифры, код цеха</span>
-                                        </div>
-                                        <div style="display: grid; grid-template-columns: 150px 80px 1fr; align-items: center; gap: 1rem; padding: 0.8rem 1rem; background: var(--bg-soft); border-radius: var(--radius-md); border-left: 4px solid var(--primary);">
-                                            <span style="font-weight: 600;">Год выпуска</span>
-                                            <span style="font-family: monospace; background: var(--bg-white); border: 1px solid var(--border-light); padding: 0.4rem 0.8rem; border-radius: var(--radius-full); text-align: center;">16</span>
-                                            <span>2 цифры, год</span>
-                                        </div>
-                                        <div style="display: grid; grid-template-columns: 150px 80px 1fr; align-items: center; gap: 1rem; padding: 0.8rem 1rem; background: var(--bg-soft); border-radius: var(--radius-md); border-left: 4px solid var(--primary);">
-                                            <span style="font-weight: 600;">Месяц выпуска</span>
-                                            <span style="font-family: monospace; background: var(--bg-white); border: 1px solid var(--border-light); padding: 0.4rem 0.8rem; border-radius: var(--radius-full); text-align: center;">03</span>
-                                            <span>2 цифры, месяц</span>
-                                        </div>
-                                        <div style="display: grid; grid-template-columns: 150px 80px 1fr; align-items: center; gap: 1rem; padding: 0.8rem 1rem; background: var(--bg-soft); border-radius: var(--radius-md); border-left: 4px solid var(--primary);">
-                                            <span style="font-weight: 600;">Порядковый номер</span>
-                                            <span style="font-family: monospace; background: var(--bg-white); border: 1px solid var(--border-light); padding: 0.4rem 0.8rem; border-radius: var(--radius-full); text-align: center;">0001</span>
-                                            <span>4 цифры, номер</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    break;
-                    
-                case 'statistic':
-                    content = `
-                        <div class="statistics-page">
-                            <div class="page-header">
-                                <h1>СТАТИСТИКА</h1>
-                            </div>
-                            <div class="page-content" id="statistics-content"></div>
-                        </div>
-                    `;
-                    break;
-                    
-                default:
-                    content = `
-                        <h3>Добро пожаловать</h3>
-                        <p>Выберите раздел в боковом меню для работы с системой.</p>
-                    `;
-            }
-
-            contentArea.innerHTML = content;
-            
-            // Обновляем активную кнопку в боковом меню
-            const tabs = document.querySelectorAll('.sidebar-tab');
-            tabs.forEach(tab => {
-                tab.classList.remove('active');
-                if (tab.textContent.toLowerCase().includes(contentType.replace('-', ' '))) {
-                    tab.classList.add('active');
-                }
-            });
-
-            // Загружаем данные в зависимости от типа контента
+            // Используем setTimeout, чтобы дать время загрузиться dashboard.js
             setTimeout(() => {
-                switch(contentType) {
-                    case 'devices':
-                        if (typeof loadDevices === 'function') {
-                            loadDevices();
-                            setTimeout(() => updateDeviceTypeFilter(), 500);
+                if (typeof window.showContent === 'function') {
+                    window.showContent('devices');
+                } else {
+                    console.log('Ожидание загрузки dashboard.js...');
+                    // Пробуем снова через секунду
+                    setTimeout(() => {
+                        if (typeof window.showContent === 'function') {
+                            window.showContent('devices');
+                        } else {
+                            console.error('❌ dashboard.js не загрузился!');
                         }
-                        break;
-                    case 'product-types':
-                        if (typeof loadProductTypes === 'function') loadProductTypes();
-                        break;
-                    case 'components':
-                        if (typeof loadComponents === 'function') loadComponents();
-                        break;
-                    case 'production-places':
-                        if (typeof loadProductionPlaces === 'function') loadProductionPlaces();
-                        break;
-                    case 'statistic':
-                        if (typeof loadStatistics === 'function') loadStatistics();
-                        break;
+                    }, 1000);
                 }
             }, 100);
-        }
+        });
 
-        // Функция для отображения контента из верхних вкладок
-        function showTopContent(contentType) {
-            const contentArea = document.getElementById('content-area');
-            let content = '';
-
-            switch(contentType) {
-                case 'profile':
-                    content = `
-                        <div class="profile-page">
-                            <div class="page-header">
-                                <h1>ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ</h1>
-                            </div>
-                            <div class="page-content">
-                                <div class="profile-card">
-                                    <div class="profile-header">
-                                        <div class="profile-avatar">А</div>
-                                        <h2>Администратор Системы</h2>
-                                        <p>Главный администратор</p>
-                                    </div>
-                                    <div class="profile-body">
-                                        <div class="profile-section">
-                                            <h3>Личная информация</h3>
-                                            <div class="profile-row">
-                                                <span class="profile-label">ФИО:</span>
-                                                <span class="profile-value">Администратор Системы</span>
-                                            </div>
-                                            <div class="profile-row">
-                                                <span class="profile-label">Должность:</span>
-                                                <span class="profile-value">Главный администратор</span>
-                                            </div>
-                                            <div class="profile-row">
-                                                <span class="profile-label">Email:</span>
-                                                <span class="profile-value">admin@istok.ru</span>
-                                            </div>
-                                            <div class="profile-row">
-                                                <span class="profile-label">Логин:</span>
-                                                <span class="profile-value">admin</span>
-                                            </div>
-                                        </div>
-                                        <div class="profile-section">
-                                            <h3>Статистика активности</h3>
-                                            <div class="profile-stats">
-                                                <div class="stat-item">
-                                                    <div class="stat-value">15.01.2023</div>
-                                                    <div class="stat-label">В системе с</div>
-                                                </div>
-                                                <div class="stat-item">
-                                                    <div class="stat-value">Сегодня</div>
-                                                    <div class="stat-label">Последний вход</div>
-                                                </div>
-                                                <div class="stat-item">
-                                                    <div class="stat-value">127</div>
-                                                    <div class="stat-label">Действий</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    break;
-                    
-                case 'employees':
-                    content = `
-                        <div class="employees-page">
-                            <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
-                                <h1>СОТРУДНИКИ</h1>
-                                <button class="add-button" onclick="addEmployee()">+ Добавить сотрудника</button>
-                            </div>
-                            <div class="page-content">
-                                <div id="employees-list"></div>
-                            </div>
-                        </div>
-                    `;
-                    break;
-                    
-                case 'about':
-                    content = `
-                        <div class="about-page">
-                            <div class="page-header">
-                                <h1>О ПРОГРАММЕ</h1>
-                            </div>
-                            <div class="page-content">
-                                <div class="profile-card">
-                                    <div class="profile-header">
-                                        <div class="profile-avatar">Д</div>
-                                        <h2>Дипломный проект</h2>
-                                        <p>Курбатова Мария Владимировна</p>
-                                    </div>
-                                    <div class="profile-body">
-                                        <div class="profile-section">
-                                            <h3>О проекте</h3>
-                                            <p style="line-height: 1.6; color: var(--text-secondary); margin-bottom: 1rem;">
-                                                Данная информационная система представляет собой дипломный проект, 
-                                                выполненный студенткой группы 405ИС-22 Курбатовой Марией Владимировной.
-                                            </p>
-                                            <p style="line-height: 1.6; color: var(--text-secondary);">
-                                                Проект посвящен разработке автоматизированной системы управления 
-                                                производственным процессом на предприятии. Система позволяет отслеживать 
-                                                все этапы производства устройств, вести учет комплектующих, управлять 
-                                                персоналом и анализировать производственные показатели.
-                                            </p>
-                                        </div>
-                                        <div class="profile-section">
-                                            <h3>О разработчике</h3>
-                                            <div class="profile-row">
-                                                <span class="profile-label">Студент:</span>
-                                                <span class="profile-value">Курбатова Мария Владимировна</span>
-                                            </div>
-                                            <div class="profile-row">
-                                                <span class="profile-label">Группа:</span>
-                                                <span class="profile-value">405ИС-22</span>
-                                            </div>
-                                            <div class="profile-row">
-                                                <span class="profile-label">Учебное заведение:</span>
-                                                <span class="profile-value">КМПО РАНХиГС</span>
-                                            </div>
-                                            <div class="profile-row">
-                                                <span class="profile-label">Год окончания:</span>
-                                                <span class="profile-value">2026</span>
-                                            </div>
-                                        </div>
-                                        <div class="profile-section">
-                                            <h3>Техническая реализация</h3>
-                                            <div class="profile-row">
-                                                <span class="profile-label">Frontend:</span>
-                                                <span class="profile-value">HTML5, CSS3, JavaScript</span>
-                                            </div>
-                                            <div class="profile-row">
-                                                <span class="profile-label">Backend:</span>
-                                                <span class="profile-value">Node.js, Express</span>
-                                            </div>
-                                            <div class="profile-row">
-                                                <span class="profile-label">База данных:</span>
-                                                <span class="profile-value">MySQL</span>
-                                            </div>
-                                        </div>
-                                        <div style="text-align: center; margin-top: 2rem; color: var(--text-tertiary);">
-                                            <p>© 2026 Курбатова Мария Владимировна. Все права защищены.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    break;
-                    
-                case 'settings':
-                    content = `
-                        <div class="settings-page">
-                            <div class="page-header">
-                                <h1>НАСТРОЙКИ СИСТЕМЫ</h1>
-                            </div>
-                            <div class="page-content">
-                                <div class="profile-card">
-                                    <div class="profile-body">
-                                        <div class="profile-section">
-                                            <h3>Тема оформления</h3>
-                                            <div class="profile-row">
-                                                <span class="profile-label">Темная тема</span>
-                                                <span class="profile-value">
-                                                    <input type="checkbox" onchange="toggleTheme()" ${document.body.classList.contains('theme-dark') ? 'checked' : ''}>
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div class="profile-section">
-                                            <h3>Язык интерфейса</h3>
-                                            <div class="profile-row">
-                                                <span class="profile-label">Русский</span>
-                                                <span class="profile-value">
-                                                    <input type="radio" name="language" checked>
-                                                </span>
-                                            </div>
-                                            <div class="profile-row">
-                                                <span class="profile-label">English</span>
-                                                <span class="profile-value">
-                                                    <input type="radio" name="language">
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div class="profile-section">
-                                            <h3>Уведомления</h3>
-                                            <div class="profile-row">
-                                                <span class="profile-label">Email уведомления</span>
-                                                <span class="profile-value">
-                                                    <input type="checkbox" checked>
-                                                </span>
-                                            </div>
-                                            <div class="profile-row">
-                                                <span class="profile-label">Системные уведомления</span>
-                                                <span class="profile-value">
-                                                    <input type="checkbox" checked>
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    break;
-            }
-
-            contentArea.innerHTML = content;
-            
-            // Обновляем активную кнопку в верхних вкладках
-            const topTabs = document.querySelectorAll('.top-tab');
-            topTabs.forEach(tab => tab.classList.remove('active'));
-            event.currentTarget.classList.add('active');
-
-            // Загружаем данные для сотрудников если нужно
-            if (contentType === 'employees') {
-                setTimeout(() => {
-                    if (typeof loadEmployees === 'function') loadEmployees();
-                }, 100);
-            }
-        }
-
-        // Функция выхода из системы
-        function logout() {
-            if (confirm('Вы уверены, что хотите выйти из системы?')) {
-                window.location.href = '/';
-            }
-        }
-
-        // Временные заглушки для функций
-        window.addDevice = function() { console.log('Функция addDevice будет доступна после загрузки dashboard.js'); };
-        window.addEmployee = function() { console.log('Функция addEmployee будет доступна после загрузки dashboard.js'); };
-        window.addProductType = function() { console.log('Функция addProductType будет доступна после загрузки dashboard.js'); };
-        window.addProductionPlace = function() { console.log('Функция addProductionPlace будет доступна после загрузки dashboard.js'); };
-        window.addComponent = function() { console.log('Функция addComponent будет доступна после загрузки dashboard.js'); };
-        window.loadDevices = function() { console.log('Функция loadDevices будет доступна после загрузки dashboard.js'); };
-        window.loadEmployees = function() { console.log('Функция loadEmployees будет доступна после загрузки dashboard.js'); };
-        window.loadProductTypes = function() { console.log('Функция loadProductTypes будет доступна после загрузки dashboard.js'); };
-        window.loadProductionPlaces = function() { console.log('Функция loadProductionPlaces будет доступна после загрузки dashboard.js'); };
-        window.loadStatistics = function() { console.log('Функция loadStatistics будет доступна после загрузки dashboard.js'); };
-        window.loadComponents = function() { console.log('Функция loadComponents будет доступна после загрузки dashboard.js'); };
-        window.searchDevices = function() { console.log('Функция searchDevices будет доступна после загрузки dashboard.js'); };
-        window.filterDevicesByType = function() { console.log('Функция filterDevicesByType будет доступна после загрузки dashboard.js'); };
-        window.updateDeviceTypeFilter = function() { console.log('Функция updateDeviceTypeFilter будет доступна после загрузки dashboard.js'); };
+        // Экспортируем функции в глобальную область
+        window.logout = logout;
+        window.toggleTheme = toggleTheme;
     </script>
     
     <!-- Подключение основного JS с логикой -->
