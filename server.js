@@ -16,9 +16,9 @@ const db = mysql.createConnection({
 (async () => {
     try {
         await db.query('SELECT 1');
-        console.log('✅ Подключение к БД успешно');
+        console.log('Подключение к БД успешно');
     } catch (err) {
-        console.error('❌ Ошибка подключения к БД:', err);
+        console.error('Ошибка подключения к БД:', err);
     }
 })();
 
@@ -60,6 +60,27 @@ app.post('/login', async (req, res) => {
                 window.location = "/";
             </script>
         `);
+    }
+});
+
+app.post('/loginyara', async (req, res) => {
+    const { username, password } = req.body;
+    
+    try {
+        const [rows] = await db.query(
+            'SELECT * FROM employees WHERE username = ? AND password = ?',
+            [username, password]
+        );
+        
+        if (rows.length > 0) {
+            const user = rows[0];
+            res.send({id: user.id, username: user.username, password: user.password, role:user.role});
+        } else {
+            res.send('401');
+        }
+    } catch (error) {
+        console.error('Ошибка БД:', error);
+        res.send('500');
     }
 });
 
