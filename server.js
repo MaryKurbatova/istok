@@ -16,16 +16,55 @@ const db = mysql.createConnection({
 (async () => {
     try {
         await db.query('SELECT 1');
-        console.log('Подключение к БД успешно');
+        console.log('✅ Подключение к БД успешно');
     } catch (err) {
-        console.error('Ошибка подключения к БД:', err);
+        console.error('❌ Ошибка подключения к БД:', err);
     }
 })();
 
 // Middleware
 app.use(express.static(__dirname));
+app.use('/images', express.static(path.join(__dirname, 'images')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
+// Хранилище сессий
+const sessions = new Map();
+
+// ===== MIDDLEWARE ДЛЯ ПРОВЕРКИ ПРАВ =====
+
+function authMiddleware(req, res, next) {
+    const token = req.headers.authorization;
+    if (!token || !sessions.has(token)) {
+        return res.status(401).json({ error: 'Не авторизован' });
+    }
+    req.user = sessions.get(token);
+    next();
+}
+
+function adminOnly(req, res, next) {
+    if (req.user && req.user.role === 'admin') {
+        next();
+    } else {
+        res.status(403).json({ error: 'Доступ запрещен. Требуются права администратора.' });
+    }
+}
+
+function canEdit(req, res, next) {
+    if (req.user && (req.user.role === 'admin' || req.user.role === 'user')) {
+        next();
+    } else {
+        res.status(403).json({ error: 'Доступ запрещен. Недостаточно прав для редактирования.' });
+    }
+}
+
+function canView(req, res, next) {
+    if (req.user) {
+        next();
+    } else {
+        res.status(403).json({ error: 'Доступ запрещен.' });
+    }
+}
 
 // ===== АВТОРИЗАЦИЯ =====
 app.get('/', (req, res) => {
@@ -37,13 +76,30 @@ app.post('/login', async (req, res) => {
     
     try {
         const [rows] = await db.query(
-            'SELECT * FROM employees WHERE username = ? AND password = ?',
+            `SELECT id, last_name, first_name, middle_name, position, username, role 
+             FROM employees 
+             WHERE username = ? AND password = ?`,
             [username, password]
         );
         
         if (rows.length > 0) {
             const user = rows[0];
-            res.redirect('/dashboard');
+            
+            const fullName = `${user.last_name} ${user.first_name}${user.middle_name ? ' ' + user.middle_name : ''}`;
+            const token = Buffer.from(`${user.id}:${Date.now()}:${Math.random()}`).toString('base64');
+            
+            sessions.set(token, {
+                id: user.id,
+                username: user.username,
+                fullName: fullName,
+                role: user.role || 'user',
+                position: user.position,
+                lastName: user.last_name,
+                firstName: user.first_name,
+                middleName: user.middle_name
+            });
+            
+            res.redirect(`/dashboard?token=${encodeURIComponent(token)}`);
         } else {
             res.send(`
                 <script>
@@ -62,6 +118,35 @@ app.post('/login', async (req, res) => {
         `);
     }
 });
+
+app.get('/api/current-user', (req, res) => {
+    const token = req.headers.authorization;
+    
+    if (!token || !sessions.has(token)) {
+        return res.status(401).json({ error: 'Не авторизован' });
+    }
+    
+    const user = sessions.get(token);
+    res.json({
+        id: user.id,
+        username: user.username,
+        fullName: user.fullName,
+        role: user.role,
+        position: user.position,
+        lastName: user.lastName,
+        firstName: user.firstName,
+        middleName: user.middleName
+    });
+});
+
+app.get('/dashboard', (req, res) => {
+    const token = req.query.token;
+    if (!token || !sessions.has(token)) {
+        return res.redirect('/');
+    }
+    res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
+
 
 app.post('/loginyara', async (req, res) => {
     const { username, password } = req.body;
@@ -84,18 +169,10 @@ app.post('/loginyara', async (req, res) => {
     }
 });
 
-app.get('/dashboard', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dashboard.html'));
-});
-
-app.get('/index.html', (req, res) => {
-    res.redirect('/');
-});
-
 // ===== API ДЛЯ РАБОТЫ С ДАННЫМИ =====
 
 // ----- УСТРОЙСТВА -----
-app.get('/api/devices', async (req, res) => {
+app.get('/api/devices', authMiddleware, canView, async (req, res) => {
     try {
         const [rows] = await db.query(`
             SELECT d.*, 
@@ -126,7 +203,7 @@ app.get('/api/devices', async (req, res) => {
     }
 });
 
-app.get('/api/devices/:id', async (req, res) => {
+app.get('/api/devices/:id', authMiddleware, canView, async (req, res) => {
     try {
         const [rows] = await db.query('SELECT * FROM devices WHERE id = ?', [req.params.id]);
         res.json(rows[0]);
@@ -136,7 +213,7 @@ app.get('/api/devices/:id', async (req, res) => {
     }
 });
 
-app.post('/api/devices', async (req, res) => {
+app.post('/api/devices', authMiddleware, canEdit, async (req, res) => {
     try {
         const {
             device_type_id, product_serial_number, type,
@@ -160,7 +237,7 @@ app.post('/api/devices', async (req, res) => {
     }
 });
 
-app.put('/api/devices/:id', async (req, res) => {
+app.put('/api/devices/:id', authMiddleware, canEdit, async (req, res) => {
     try {
         const {
             device_type_id, product_serial_number, type,
@@ -182,7 +259,7 @@ app.put('/api/devices/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/devices/:id', async (req, res) => {
+app.delete('/api/devices/:id', authMiddleware, adminOnly, async (req, res) => {
     try {
         await db.query('DELETE FROM devices WHERE id = ?', [req.params.id]);
         res.json({ message: 'Устройство удалено' });
@@ -193,7 +270,7 @@ app.delete('/api/devices/:id', async (req, res) => {
 });
 
 // ----- СОТРУДНИКИ -----
-app.get('/api/employees', async (req, res) => {
+app.get('/api/employees', authMiddleware, adminOnly, async (req, res) => {
     try {
         const [rows] = await db.query('SELECT id, last_name, first_name, middle_name, position, username, role FROM employees ORDER BY last_name, first_name');
         res.json(rows);
@@ -203,7 +280,7 @@ app.get('/api/employees', async (req, res) => {
     }
 });
 
-app.get('/api/employees/:id', async (req, res) => {
+app.get('/api/employees/:id', authMiddleware, adminOnly, async (req, res) => {
     try {
         const [rows] = await db.query('SELECT id, last_name, first_name, middle_name, position, username, role FROM employees WHERE id = ?', [req.params.id]);
         res.json(rows[0]);
@@ -213,7 +290,7 @@ app.get('/api/employees/:id', async (req, res) => {
     }
 });
 
-app.post('/api/employees', async (req, res) => {
+app.post('/api/employees', authMiddleware, adminOnly, async (req, res) => {
     try {
         const { last_name, first_name, middle_name, position, username, password, role } = req.body;
         
@@ -234,7 +311,7 @@ app.post('/api/employees', async (req, res) => {
     }
 });
 
-app.put('/api/employees/:id', async (req, res) => {
+app.put('/api/employees/:id', authMiddleware, adminOnly, async (req, res) => {
     try {
         const { last_name, first_name, middle_name, position, username, password, role } = req.body;
         
@@ -263,7 +340,7 @@ app.put('/api/employees/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/employees/:id', async (req, res) => {
+app.delete('/api/employees/:id', authMiddleware, adminOnly, async (req, res) => {
     try {
         await db.query('DELETE FROM employees WHERE id = ?', [req.params.id]);
         res.json({ message: 'Сотрудник удален' });
@@ -274,7 +351,7 @@ app.delete('/api/employees/:id', async (req, res) => {
 });
 
 // ----- ТИПЫ УСТРОЙСТВ -----
-app.get('/api/device-types', async (req, res) => {
+app.get('/api/device-types', authMiddleware, canView, async (req, res) => {
     try {
         const [rows] = await db.query('SELECT * FROM device_type ORDER BY name');
         res.json(rows);
@@ -284,7 +361,7 @@ app.get('/api/device-types', async (req, res) => {
     }
 });
 
-app.post('/api/device-types', async (req, res) => {
+app.post('/api/device-types', authMiddleware, adminOnly, async (req, res) => {
     try {
         const { name, code } = req.body;
         const [result] = await db.query(
@@ -298,7 +375,7 @@ app.post('/api/device-types', async (req, res) => {
     }
 });
 
-app.delete('/api/device-types/:id', async (req, res) => {
+app.delete('/api/device-types/:id', authMiddleware, adminOnly, async (req, res) => {
     try {
         await db.query('DELETE FROM device_type WHERE id = ?', [req.params.id]);
         res.json({ message: 'Тип удален' });
@@ -308,8 +385,8 @@ app.delete('/api/device-types/:id', async (req, res) => {
     }
 });
 
-// ----- МЕСЯЦЫ ПРОИЗВОДСТВА -----
-app.get('/api/production-months', async (req, res) => {
+// ----- МЕСЯЦЫ, ГОДЫ, ЭТАПЫ, МЕСТОПОЛОЖЕНИЯ (справочные данные) -----
+app.get('/api/production-months', authMiddleware, canView, async (req, res) => {
     try {
         const [rows] = await db.query('SELECT * FROM production_month ORDER BY id');
         res.json(rows);
@@ -319,8 +396,7 @@ app.get('/api/production-months', async (req, res) => {
     }
 });
 
-// ----- ГОДЫ ПРОИЗВОДСТВА -----
-app.get('/api/production-years', async (req, res) => {
+app.get('/api/production-years', authMiddleware, canView, async (req, res) => {
     try {
         const [rows] = await db.query('SELECT * FROM production_year ORDER BY id');
         res.json(rows);
@@ -330,8 +406,7 @@ app.get('/api/production-years', async (req, res) => {
     }
 });
 
-// ----- ЭТАПЫ ПРОИЗВОДСТВА -----
-app.get('/api/production-stages', async (req, res) => {
+app.get('/api/production-stages', authMiddleware, canView, async (req, res) => {
     try {
         const [rows] = await db.query('SELECT * FROM production_stage ORDER BY id');
         res.json(rows);
@@ -341,8 +416,7 @@ app.get('/api/production-stages', async (req, res) => {
     }
 });
 
-// ----- МЕСТОПОЛОЖЕНИЯ -----
-app.get('/api/locations', async (req, res) => {
+app.get('/api/locations', authMiddleware, canView, async (req, res) => {
     try {
         const [rows] = await db.query('SELECT * FROM location ORDER BY name');
         res.json(rows);
@@ -352,8 +426,8 @@ app.get('/api/locations', async (req, res) => {
     }
 });
 
-// ----- КОМПЛЕКТУЮЩИЕ (из разных таблиц) -----
-app.get('/api/components', async (req, res) => {
+// ----- КОМПЛЕКТУЮЩИЕ -----
+app.get('/api/components', authMiddleware, canView, async (req, res) => {
     try {
         const [boards] = await db.query(`
             SELECT id, serial_num_board as name, 'Плата' as type, device_id,
@@ -405,8 +479,7 @@ app.get('/api/components', async (req, res) => {
     }
 });
 
-// ----- ТИПЫ КОМПЛЕКТУЮЩИХ (для выпадающего списка) -----
-app.get('/api/component-types', async (req, res) => {
+app.get('/api/component-types', authMiddleware, canView, async (req, res) => {
     try {
         const types = [
             { id: 'board', name: 'Плата', table: 'serial_num_board', field: 'serial_num_board' },
@@ -424,14 +497,12 @@ app.get('/api/component-types', async (req, res) => {
     }
 });
 
-// ----- ДОБАВЛЕНИЕ НОВОГО КОМПЛЕКТУЮЩЕГО -----
-app.post('/api/components', async (req, res) => {
+app.post('/api/components', authMiddleware, canEdit, async (req, res) => {
     try {
         const { type, name, device_id, author } = req.body;
         
         let tableName, fieldName;
         
-        // Определяем таблицу и поле в зависимости от типа
         switch(type) {
             case 'board':
                 tableName = 'serial_num_board';
@@ -465,7 +536,6 @@ app.post('/api/components', async (req, res) => {
                 return res.status(400).json({ error: 'Неверный тип комплектующего' });
         }
         
-        // Для платы добавляем дополнительную информацию
         if (type === 'board') {
             const [result] = await db.query(
                 `INSERT INTO ${tableName} 
@@ -487,8 +557,7 @@ app.post('/api/components', async (req, res) => {
     }
 });
 
-// ----- УДАЛЕНИЕ КОМПЛЕКТУЮЩЕГО -----
-app.delete('/api/components/:id', async (req, res) => {
+app.delete('/api/components/:id', authMiddleware, adminOnly, async (req, res) => {
     try {
         const { type } = req.query;
         const id = req.params.id;
@@ -529,8 +598,7 @@ app.delete('/api/components/:id', async (req, res) => {
     }
 });
 
-// ----- КОМПЛЕКТУЮЩИЕ ДЛЯ КОНКРЕТНОГО УСТРОЙСТВА -----
-app.get('/api/components/device/:deviceId', async (req, res) => {
+app.get('/api/components/device/:deviceId', authMiddleware, canView, async (req, res) => {
     try {
         const deviceId = req.params.deviceId;
         
@@ -559,7 +627,7 @@ app.get('/api/components/device/:deviceId', async (req, res) => {
 });
 
 // ----- МЕСТА ПРОИЗВОДСТВА -----
-app.get('/api/production-places', async (req, res) => {
+app.get('/api/production-places', authMiddleware, canView, async (req, res) => {
     try {
         const [rows] = await db.query('SELECT * FROM place_of_production ORDER BY name');
         res.json(rows);
@@ -569,7 +637,7 @@ app.get('/api/production-places', async (req, res) => {
     }
 });
 
-app.post('/api/production-places', async (req, res) => {
+app.post('/api/production-places', authMiddleware, adminOnly, async (req, res) => {
     try {
         const { code, name } = req.body;
         const [result] = await db.query(
@@ -583,7 +651,7 @@ app.post('/api/production-places', async (req, res) => {
     }
 });
 
-app.delete('/api/production-places/:id', async (req, res) => {
+app.delete('/api/production-places/:id', authMiddleware, adminOnly, async (req, res) => {
     try {
         await db.query('DELETE FROM place_of_production WHERE id = ?', [req.params.id]);
         res.json({ message: 'Место удалено' });
@@ -593,103 +661,18 @@ app.delete('/api/production-places/:id', async (req, res) => {
     }
 });
 
-// ----- СБОРЩИКИ -----
-app.get('/api/assemblers', async (req, res) => {
-    try {
-        const [rows] = await db.query(`
-            SELECT a.*, e.last_name, e.first_name, e.middle_name, d.product_serial_number
-            FROM assemblers a
-            JOIN employees e ON a.employee_id = e.id
-            JOIN devices d ON a.device_id = d.id
-            ORDER BY a.assembly_date DESC
-        `);
-        res.json(rows);
-    } catch (error) {
-        console.error('Ошибка получения сборщиков:', error);
-        res.status(500).json({ error: 'Ошибка сервера' });
-    }
-});
-
-// ----- ЭЛЕКТРИКИ -----
-app.get('/api/electricians', async (req, res) => {
-    try {
-        const [rows] = await db.query(`
-            SELECT e.*, emp.last_name, emp.first_name, emp.middle_name, d.product_serial_number
-            FROM electricians e
-            JOIN employees emp ON e.employee_id = emp.id
-            JOIN devices d ON e.device_id = d.id
-            ORDER BY e.diagnosis_date DESC
-        `);
-        res.json(rows);
-    } catch (error) {
-        console.error('Ошибка получения электриков:', error);
-        res.status(500).json({ error: 'Ошибка сервера' });
-    }
-});
-
-// ----- ПСИ ТЕСТЫ -----
-app.get('/api/psi-tests', async (req, res) => {
-    try {
-        const [rows] = await db.query(`
-            SELECT p.*, emp.last_name, emp.first_name, emp.middle_name, d.product_serial_number
-            FROM psi_tests p
-            JOIN employees emp ON p.employee_id = emp.id
-            JOIN devices d ON p.device_id = d.id
-            ORDER BY p.test_date DESC
-        `);
-        res.json(rows);
-    } catch (error) {
-        console.error('Ошибка получения ПСИ тестов:', error);
-        res.status(500).json({ error: 'Ошибка сервера' });
-    }
-});
-
-// ----- MAC-АДРЕСА -----
-app.get('/api/macs', async (req, res) => {
-    try {
-        const [rows] = await db.query(`
-            SELECT m.*, d.product_serial_number
-            FROM macs m
-            JOIN devices d ON m.device_id = d.id
-            ORDER BY m.assignment_date DESC
-        `);
-        res.json(rows);
-    } catch (error) {
-        console.error('Ошибка получения MAC-адресов:', error);
-        res.status(500).json({ error: 'Ошибка сервера' });
-    }
-});
-
 // ----- СТАТИСТИКА -----
-app.get('/api/statistics', async (req, res) => {
+app.get('/api/statistics', authMiddleware, canView, async (req, res) => {
     try {
         const [devices] = await db.query('SELECT COUNT(*) as total FROM devices');
-        const [ready] = await db.query(`
-            SELECT COUNT(*) as count FROM devices WHERE diag = true
-        `);
-        const [problems] = await db.query(`
-            SELECT COUNT(*) as count FROM devices WHERE diag = false
-        `);
+        const [ready] = await db.query(`SELECT COUNT(*) as count FROM devices WHERE diag = true`);
+        const [problems] = await db.query(`SELECT COUNT(*) as count FROM devices WHERE diag = false`);
         
         const [byType] = await db.query(`
             SELECT dt.name, dt.code, COUNT(d.id) as count
             FROM device_type dt
             LEFT JOIN devices d ON dt.id = d.device_type_id
             GROUP BY dt.id, dt.name, dt.code
-        `);
-        
-        const [byStage] = await db.query(`
-            SELECT ps.name, ps.code, COUNT(d.id) as count
-            FROM production_stage ps
-            LEFT JOIN devices d ON ps.id = d.production_stage_id
-            GROUP BY ps.id, ps.name, ps.code
-        `);
-        
-        const [byPlace] = await db.query(`
-            SELECT pp.name, pp.code, COUNT(d.id) as count
-            FROM place_of_production pp
-            LEFT JOIN devices d ON pp.id = d.place_of_production_id
-            GROUP BY pp.id, pp.name, pp.code
         `);
         
         const totalDevices = devices[0].total || 0;
@@ -699,12 +682,9 @@ app.get('/api/statistics', async (req, res) => {
                 total: totalDevices,
                 ready: ready[0].count || 0,
                 problems: problems[0].count || 0,
-                ready_percentage: totalDevices ? Math.round((ready[0].count || 0) / totalDevices * 100) : 0,
-                problems_percentage: totalDevices ? Math.round((problems[0].count || 0) / totalDevices * 100) : 0
+                ready_percentage: totalDevices ? Math.round((ready[0].count || 0) / totalDevices * 100) : 0
             },
-            byType: byType,
-            byStage: byStage,
-            byPlace: byPlace
+            byType: byType
         };
         
         res.json(stats);
@@ -716,7 +696,11 @@ app.get('/api/statistics', async (req, res) => {
 
 // ===== ЗАПУСК СЕРВЕРА =====
 app.listen(PORT, () => {
-    console.log(`✅ Сервер запущен на http://localhost:${PORT}`);
-    console.log(`📁 Откройте браузер и перейдите по адресу:`);
-    console.log(`http://localhost:${PORT} - страница авторизации`);
+    console.log(`\n✅ Сервер успешно запущен!`);
+    console.log(`📡 Порт: ${PORT}`);
+    console.log(`🌐 URL: http://localhost:${PORT}`);
+    console.log(`\n👥 Тестовые учетные записи:`);
+    console.log(`   📌 Администратор: admin / admin123`);
+    console.log(`   📌 Пользователь: ivanov_a / 123`);
+    console.log(`\n✅ Готово к работе!\n`);
 });
