@@ -295,19 +295,11 @@ CREATE TABLE repair (
 -- Включение проверки внешних ключей
 SET FOREIGN_KEY_CHECKS = 1;
 
--- Вставка данных в справочные таблицы
+-- ===== ВСТАВКА ДАННЫХ В СПРАВОЧНЫЕ ТАБЛИЦЫ =====
+-- Только нужные типы устройств: Сервисный маршрутизатор (RS) и Коммутатор доступа (SA)
 INSERT INTO device_type (name, code) VALUES
 ('Сервисный маршрутизатор', 'RS'),
-('Граничный маршрутизатор', 'RB'),
-('Коммутатор доступа', 'SA'),
-('Коммутатор агрегации', 'SG'),
-('Коммутатор ЦОД', 'SC'),
-('Блейд сервер', 'SB'),
-('Стоечный сервер', 'SR'),
-('Модуль расширения', 'EX'),
-('Сетевая платформа', 'RP'),
-('Рециркулятор воздуха', 'AR'),
-('Составная часть', 'MC');
+('Коммутатор доступа', 'SA');
 
 INSERT INTO production_month (code, name) VALUES
 ('1', 'Январь'), ('2', 'Февраль'), ('3', 'Март'), ('4', 'Апрель'), 
@@ -350,7 +342,7 @@ INSERT INTO location (name) VALUES
 ('Цех программирования №3'),
 ('Цех программирования №4');
 
--- Исправлено: добавлены уникальные версии
+-- Вставка BMC
 INSERT INTO bmc (file_bmc, version_bmc) VALUES
 ('bmc_router_v1.2.bin', 'router_1.2'), 
 ('bmc_router_v1.3.bin', 'router_1.3'), 
@@ -362,6 +354,7 @@ INSERT INTO bmc (file_bmc, version_bmc) VALUES
 ('bmc_switch_v2.0.bin', 'switch_2.0'),
 ('bmc_switch_v2.1.bin', 'switch_2.1');
 
+-- Вставка UBOOT
 INSERT INTO uboot (file_uboot, version_uboot) VALUES
 ('uboot_router_v2022.01', 'router_2022.01'), 
 ('uboot_router_v2022.04', 'router_2022.04'), 
@@ -371,6 +364,7 @@ INSERT INTO uboot (file_uboot, version_uboot) VALUES
 ('uboot_switch_v2023.06', 'switch_2023.06'),
 ('uboot_switch_v2024.01', 'switch_2024.01');
 
+-- Вставка ISO
 INSERT INTO iso (file_iso, version_iso) VALUES
 ('routeros_6.0.iso', 'router_6.0'), 
 ('routeros_6.1.iso', 'router_6.1'), 
@@ -382,6 +376,7 @@ INSERT INTO iso (file_iso, version_iso) VALUES
 ('switch_os_3.2.iso', 'switch_3.2'),
 ('switch_os_4.0.iso', 'switch_4.0');
 
+-- Вставка сотрудников
 INSERT INTO employees (last_name, first_name, middle_name, position, username, password, role) VALUES
 -- Основные сотрудники
 ('Иванов', 'Алексей', 'Петрович', 'Сборщик', 'ivanov_a', '123', 'user'),
@@ -393,7 +388,7 @@ INSERT INTO employees (last_name, first_name, middle_name, position, username, p
 ('Администратор', 'Главный', 'Системович', 'Главный администратор', 'admin', 'admin123', 'admin'),
 ('Иванов', 'Иван', 'Иванович', 'Инженер', 'ivanov_i', '123', 'user'),
 ('Петров', 'Петр', 'Петрович', 'Техник', 'petrov_p', '123', 'user'),
--- Новые сотрудники для коммутаторов
+-- Сотрудники для коммутаторов
 ('Соколов', 'Андрей', 'Викторович', 'Сборщик коммутаторов', 'sokolov_a', '123', 'user'),
 ('Михайлов', 'Денис', 'Сергеевич', 'Сборщик коммутаторов', 'mikhailov_d', '123', 'user'),
 ('Новикова', 'Елена', 'Александровна', 'Электрик', 'novikova_e', '123', 'user'),
@@ -403,14 +398,14 @@ INSERT INTO employees (last_name, first_name, middle_name, position, username, p
 ('Оператор', 'Иван', 'Петрович', 'Оператор', 'operator', '123', 'operator'),
 ('Петрова', 'Анна', 'Сергеевна', 'Старший оператор', 'operator2', '123', 'operator');
 
--- Вставка маршрутизаторов (исправлены подзапросы)
+-- ===== ВСТАВКА УСТРОЙСТВ =====
+-- RS маршрутизаторы (серия ISN415)
 INSERT INTO devices (
     device_type_id, place_of_production_id, production_month_id, production_year_id,
     production_stage_id, actual_location_id, bmc_id, uboot_id, iso_id,
     product_serial_number, monthly_sequence, manufactures_date, type,
     version_os, diag, date_time_package, date_time_pci
 ) VALUES
--- RS маршрутизаторы
 ((SELECT id FROM device_type WHERE code = 'RS'), 
  (SELECT id FROM place_of_production WHERE code = '10'), 
  (SELECT id FROM production_month WHERE code = '6'), 
@@ -471,7 +466,6 @@ INSERT INTO devices (
  'RS105016430005', '005', '2006-05-18', 'ISN4150873 +10n',
  'RouterOS 6.4', true, '2006-05-18 10:00:00', '2006-05-18 14:00:00'),
 
--- Дополнительные RS маршрутизаторы
 ((SELECT id FROM device_type WHERE code = 'RS'), 
  (SELECT id FROM place_of_production WHERE code = '10'), 
  (SELECT id FROM production_month WHERE code = '2'), 
@@ -494,16 +488,52 @@ INSERT INTO devices (
  (SELECT id FROM uboot WHERE version_uboot = 'router_2023.01'), 
  (SELECT id FROM iso WHERE version_iso = 'router_6.3'),
  'RS107016430007', '007', '2008-08-05', 'ISN4150873 +10n',
- 'RouterOS 6.3', true, '2008-08-05 10:00:00', '2008-08-05 14:00:00');
+ 'RouterOS 6.3', true, '2008-08-05 10:00:00', '2008-08-05 14:00:00'),
 
--- Вставка коммутаторов
+-- RS маршрутизаторы серии ISN505
+((SELECT id FROM device_type WHERE code = 'RS'), 
+ (SELECT id FROM place_of_production WHERE code = '17'), 
+ (SELECT id FROM production_month WHERE code = '1'), 
+ (SELECT id FROM production_year WHERE code = '22'),
+ (SELECT id FROM production_stage WHERE code = '5'), 
+ (SELECT id FROM location WHERE name = 'Склад готовой продукции'),
+ (SELECT id FROM bmc WHERE version_bmc = 'router_2.0'), 
+ (SELECT id FROM uboot WHERE version_uboot = 'router_2023.01'), 
+ (SELECT id FROM iso WHERE version_iso = 'router_6.4'),
+ 'RS108026430008', '008', '2023-01-15', 'ISN50502T5',
+ 'RouterOS 6.4', true, '2023-01-15 10:00:00', '2023-01-15 14:00:00'),
+
+((SELECT id FROM device_type WHERE code = 'RS'), 
+ (SELECT id FROM place_of_production WHERE code = '18'), 
+ (SELECT id FROM production_month WHERE code = '3'), 
+ (SELECT id FROM production_year WHERE code = '22'),
+ (SELECT id FROM production_stage WHERE code = '5'), 
+ (SELECT id FROM location WHERE name = 'Склад готовой продукции'),
+ (SELECT id FROM bmc WHERE version_bmc = 'router_2.1'), 
+ (SELECT id FROM uboot WHERE version_uboot = 'router_2023.04'), 
+ (SELECT id FROM iso WHERE version_iso = 'router_6.4'),
+ 'RS109026430009', '009', '2023-03-20', 'ISN50502T5',
+ 'RouterOS 6.4', true, '2023-03-20 10:00:00', '2023-03-20 14:00:00'),
+
+((SELECT id FROM device_type WHERE code = 'RS'), 
+ (SELECT id FROM place_of_production WHERE code = '16'), 
+ (SELECT id FROM production_month WHERE code = '6'), 
+ (SELECT id FROM production_year WHERE code = '22'),
+ (SELECT id FROM production_stage WHERE code = '5'), 
+ (SELECT id FROM location WHERE name = 'Склад готовой продукции'),
+ (SELECT id FROM bmc WHERE version_bmc = 'router_2.1'), 
+ (SELECT id FROM uboot WHERE version_uboot = 'router_2024.01'), 
+ (SELECT id FROM iso WHERE version_iso = 'router_7.0'),
+ 'RS110026430010', '010', '2023-06-10', 'ISN50502T5',
+ 'RouterOS 7.0', true, '2023-06-10 10:00:00', '2023-06-10 14:00:00');
+
+-- SA коммутаторы доступа
 INSERT INTO devices (
     device_type_id, place_of_production_id, production_month_id, production_year_id,
     production_stage_id, actual_location_id, bmc_id, uboot_id, iso_id,
     product_serial_number, monthly_sequence, manufactures_date, type,
     version_os, diag, date_time_package, date_time_pci
 ) VALUES
--- ISN42124T5C4 модели
 ((SELECT id FROM device_type WHERE code = 'SA'), 
  (SELECT id FROM place_of_production WHERE code = '17'), 
  (SELECT id FROM production_month WHERE code = '1'), 
@@ -540,7 +570,6 @@ INSERT INTO devices (
  'SA101026430003', '003', '2023-03-10', 'ISN42124T5C4',
  'SwitchOS 3.1', true, '2023-03-10 10:00:00', '2023-03-10 14:00:00'),
 
--- ISN42124T5P5 модели
 ((SELECT id FROM device_type WHERE code = 'SA'), 
  (SELECT id FROM place_of_production WHERE code = '18'), 
  (SELECT id FROM production_month WHERE code = '4'), 
@@ -577,7 +606,6 @@ INSERT INTO devices (
  'SA102026430006', '006', '2023-06-18', 'ISN42124T5P5',
  'SwitchOS 4.0', true, '2023-06-18 10:00:00', '2023-06-18 14:00:00'),
 
--- ISN42124X5 модели
 ((SELECT id FROM device_type WHERE code = 'SA'), 
  (SELECT id FROM place_of_production WHERE code = '16'), 
  (SELECT id FROM production_month WHERE code = '7'), 
@@ -602,7 +630,6 @@ INSERT INTO devices (
  'SA103026430008', '008', '2023-08-30', 'ISN42124X5',
  'SwitchOS 4.0', true, '2023-08-30 10:00:00', '2023-08-30 14:00:00'),
 
--- Дополнительные коммутаторы 2024 года
 ((SELECT id FROM device_type WHERE code = 'SA'), 
  (SELECT id FROM place_of_production WHERE code = '17'), 
  (SELECT id FROM production_month WHERE code = '1'), 
@@ -627,10 +654,8 @@ INSERT INTO devices (
  'SA102026430010', '010', '2024-02-15', 'ISN42124T5P5',
  'SwitchOS 4.0', true, '2024-02-15 10:00:00', '2024-02-15 14:00:00');
 
--- Остальные INSERT (macs, serial_num_*, assemblers, electricians, psi_tests, programmers, statistic, history, repair, device_error, xray) остаются без изменений
--- Они идут после INSERT в devices, так как используют device_id
-
--- Вставка MAC-адресов для маршрутизаторов
+-- ===== ВСТАВКА MAC-АДРЕСОВ =====
+-- MAC-адреса для RS маршрутизаторов
 INSERT INTO macs (device_id, mac_address, interface_name, assignment_date) VALUES
 (1, '00:1B:44:11:3A:B7', 'eth0', '2002-06-15'),
 (1, '00:1B:44:11:3A:B8', 'eth1', '2002-06-15'),
@@ -645,42 +670,48 @@ INSERT INTO macs (device_id, mac_address, interface_name, assignment_date) VALUE
 (6, '00:1B:44:11:3A:C1', 'eth0', '2007-02-12'),
 (6, '00:1B:44:11:3A:C2', 'eth1', '2007-02-12'),
 (7, '00:1B:44:11:3A:C3', 'eth0', '2008-08-05'),
-(7, '00:1B:44:11:3A:C4', 'eth1', '2008-08-05');
+(7, '00:1B:44:11:3A:C4', 'eth1', '2008-08-05'),
+(8, '00:1B:44:11:3A:C5', 'eth0', '2023-01-15'),
+(8, '00:1B:44:11:3A:C6', 'eth1', '2023-01-15'),
+(9, '00:1B:44:11:3A:C7', 'eth0', '2023-03-20'),
+(9, '00:1B:44:11:3A:C8', 'eth1', '2023-03-20'),
+(10, '00:1B:44:11:3A:C9', 'eth0', '2023-06-10'),
+(10, '00:1B:44:11:3A:D0', 'eth1', '2023-06-10');
 
--- Вставка MAC-адресов для коммутаторов
+-- MAC-адреса для SA коммутаторов
 INSERT INTO macs (device_id, mac_address, interface_name, assignment_date) VALUES
-(8, '00:1C:44:11:3A:D1', 'eth0', '2023-01-15'),
-(8, '00:1C:44:11:3A:D2', 'eth1', '2023-01-15'),
-(8, '00:1C:44:11:3A:D3', 'management', '2023-01-15'),
-(9, '00:1C:44:11:3A:E1', 'eth0', '2023-02-20'),
-(9, '00:1C:44:11:3A:E2', 'eth1', '2023-02-20'),
-(9, '00:1C:44:11:3A:E3', 'management', '2023-02-20'),
-(10, '00:1C:44:11:3A:F1', 'eth0', '2023-03-10'),
-(10, '00:1C:44:11:3A:F2', 'eth1', '2023-03-10'),
-(10, '00:1C:44:11:3A:F3', 'management', '2023-03-10'),
-(11, '00:1C:44:11:3A:G1', 'eth0', '2023-04-05'),
-(11, '00:1C:44:11:3A:G2', 'eth1', '2023-04-05'),
-(11, '00:1C:44:11:3A:G3', 'management', '2023-04-05'),
-(12, '00:1C:44:11:3A:H1', 'eth0', '2023-05-12'),
-(12, '00:1C:44:11:3A:H2', 'eth1', '2023-05-12'),
-(12, '00:1C:44:11:3A:H3', 'management', '2023-05-12'),
-(13, '00:1C:44:11:3A:I1', 'eth0', '2023-06-18'),
-(13, '00:1C:44:11:3A:I2', 'eth1', '2023-06-18'),
-(13, '00:1C:44:11:3A:I3', 'management', '2023-06-18'),
-(14, '00:1C:44:11:3A:J1', 'eth0', '2023-07-22'),
-(14, '00:1C:44:11:3A:J2', 'eth1', '2023-07-22'),
-(14, '00:1C:44:11:3A:J3', 'management', '2023-07-22'),
-(15, '00:1C:44:11:3A:K1', 'eth0', '2023-08-30'),
-(15, '00:1C:44:11:3A:K2', 'eth1', '2023-08-30'),
-(15, '00:1C:44:11:3A:K3', 'management', '2023-08-30'),
-(16, '00:1C:44:11:3A:L1', 'eth0', '2024-01-10'),
-(16, '00:1C:44:11:3A:L2', 'eth1', '2024-01-10'),
-(16, '00:1C:44:11:3A:L3', 'management', '2024-01-10'),
-(17, '00:1C:44:11:3A:M1', 'eth0', '2024-02-15'),
-(17, '00:1C:44:11:3A:M2', 'eth1', '2024-02-15'),
-(17, '00:1C:44:11:3A:M3', 'management', '2024-02-15');
+(11, '00:1C:44:11:3A:D1', 'eth0', '2023-01-15'),
+(11, '00:1C:44:11:3A:D2', 'eth1', '2023-01-15'),
+(11, '00:1C:44:11:3A:D3', 'management', '2023-01-15'),
+(12, '00:1C:44:11:3A:E1', 'eth0', '2023-02-20'),
+(12, '00:1C:44:11:3A:E2', 'eth1', '2023-02-20'),
+(12, '00:1C:44:11:3A:E3', 'management', '2023-02-20'),
+(13, '00:1C:44:11:3A:F1', 'eth0', '2023-03-10'),
+(13, '00:1C:44:11:3A:F2', 'eth1', '2023-03-10'),
+(13, '00:1C:44:11:3A:F3', 'management', '2023-03-10'),
+(14, '00:1C:44:11:3A:G1', 'eth0', '2023-04-05'),
+(14, '00:1C:44:11:3A:G2', 'eth1', '2023-04-05'),
+(14, '00:1C:44:11:3A:G3', 'management', '2023-04-05'),
+(15, '00:1C:44:11:3A:H1', 'eth0', '2023-05-12'),
+(15, '00:1C:44:11:3A:H2', 'eth1', '2023-05-12'),
+(15, '00:1C:44:11:3A:H3', 'management', '2023-05-12'),
+(16, '00:1C:44:11:3A:I1', 'eth0', '2023-06-18'),
+(16, '00:1C:44:11:3A:I2', 'eth1', '2023-06-18'),
+(16, '00:1C:44:11:3A:I3', 'management', '2023-06-18'),
+(17, '00:1C:44:11:3A:J1', 'eth0', '2023-07-22'),
+(17, '00:1C:44:11:3A:J2', 'eth1', '2023-07-22'),
+(17, '00:1C:44:11:3A:J3', 'management', '2023-07-22'),
+(18, '00:1C:44:11:3A:K1', 'eth0', '2023-08-30'),
+(18, '00:1C:44:11:3A:K2', 'eth1', '2023-08-30'),
+(18, '00:1C:44:11:3A:K3', 'management', '2023-08-30'),
+(19, '00:1C:44:11:3A:L1', 'eth0', '2024-01-10'),
+(19, '00:1C:44:11:3A:L2', 'eth1', '2024-01-10'),
+(19, '00:1C:44:11:3A:L3', 'management', '2024-01-10'),
+(20, '00:1C:44:11:3A:M1', 'eth0', '2024-02-15'),
+(20, '00:1C:44:11:3A:M2', 'eth1', '2024-02-15'),
+(20, '00:1C:44:11:3A:M3', 'management', '2024-02-15');
 
--- Серийные номера для маршрутизаторов
+-- ===== СЕРИЙНЫЕ НОМЕРА ДЛЯ RS МАРШРУТИЗАТОРОВ =====
 INSERT INTO serial_num_board (device_id, serial_num_board, visual_inspection, visual_inspection_author, visual_inspection_datetime) VALUES
 (1, 'SNB00123001', true, 'Иванов А.П.', '2002-06-10 10:00:00'),
 (2, 'SNB00123002', true, 'Петров С.И.', '2003-07-15 11:30:00'),
@@ -688,88 +719,98 @@ INSERT INTO serial_num_board (device_id, serial_num_board, visual_inspection, vi
 (4, 'SNB00123004', true, 'Петров С.И.', '2005-09-20 14:20:00'),
 (5, 'SNB00123005', true, 'Иванов А.П.', '2006-05-12 16:10:00'),
 (6, 'SNB00123006', true, 'Петров С.И.', '2007-02-10 10:30:00'),
-(7, 'SNB00123007', true, 'Иванов А.П.', '2008-08-03 13:15:00');
+(7, 'SNB00123007', true, 'Иванов А.П.', '2008-08-03 13:15:00'),
+(8, 'SNB00123008', true, 'Соколов А.В.', '2023-01-14 09:30:00'),
+(9, 'SNB00123009', true, 'Михайлов Д.С.', '2023-03-19 10:15:00'),
+(10, 'SNB00123010', true, 'Соколов А.В.', '2023-06-09 11:45:00');
 
 INSERT INTO serial_num_pcb (device_id, serial_num_pcb) VALUES
 (1, 'PCBSN00123001'), (2, 'PCBSN00123002'), (3, 'PCBSN00123003'),
 (4, 'PCBSN00123004'), (5, 'PCBSN00123005'), (6, 'PCBSN00123006'),
-(7, 'PCBSN00123007');
+(7, 'PCBSN00123007'), (8, 'PCBSN00123008'), (9, 'PCBSN00123009'),
+(10, 'PCBSN00123010');
 
 INSERT INTO serial_num_router (device_id, serial_num_router) VALUES
 (1, 'ROUTER00123001'), (2, 'ROUTER00123002'), (3, 'ROUTER00123003'),
 (4, 'ROUTER00123004'), (5, 'ROUTER00123005'), (6, 'ROUTER00123006'),
-(7, 'ROUTER00123007');
+(7, 'ROUTER00123007'), (8, 'ROUTER00123008'), (9, 'ROUTER00123009'),
+(10, 'ROUTER00123010');
 
 INSERT INTO serial_num_package (device_id, serial_num_package) VALUES
 (1, 'PKG00123001'), (2, 'PKG00123002'), (3, 'PKG00123003'),
 (4, 'PKG00123004'), (5, 'PKG00123005'), (6, 'PKG00123006'),
-(7, 'PKG00123007');
+(7, 'PKG00123007'), (8, 'PKG00123008'), (9, 'PKG00123009'),
+(10, 'PKG00123010');
 
 INSERT INTO serial_num_case (device_id, serial_num_case) VALUES
 (1, 'CASE00123001'), (2, 'CASE00123002'), (3, 'CASE00123003'),
 (4, 'CASE00123004'), (5, 'CASE00123005'), (6, 'CASE00123006'),
-(7, 'CASE00123007');
+(7, 'CASE00123007'), (8, 'CASE00123008'), (9, 'CASE00123009'),
+(10, 'CASE00123010');
 
 INSERT INTO serial_num_bp (device_id, serial_num_bp) VALUES
 (1, 'BP00123001'), (2, 'BP00123002'), (3, 'BP00123003'),
 (4, 'BP00123004'), (5, 'BP00123005'), (6, 'BP00123006'),
-(7, 'BP00123007');
+(7, 'BP00123007'), (8, 'BP00123008'), (9, 'BP00123009'),
+(10, 'BP00123010');
 
 INSERT INTO serial_num_pki (device_id, serial_num_pki) VALUES
 (1, 'PKI00123001'), (2, 'PKI00123002'), (3, 'PKI00123003'),
 (4, 'PKI00123004'), (5, 'PKI00123005'), (6, 'PKI00123006'),
-(7, 'PKI00123007');
+(7, 'PKI00123007'), (8, 'PKI00123008'), (9, 'PKI00123009'),
+(10, 'PKI00123010');
 
--- Серийные номера для коммутаторов
+-- ===== СЕРИЙНЫЕ НОМЕРА ДЛЯ SA КОММУТАТОРОВ =====
 INSERT INTO serial_num_board (device_id, serial_num_board, visual_inspection, visual_inspection_author, visual_inspection_datetime) VALUES
-(8, 'SNB00223001', true, 'Соколов А.В.', '2023-01-14 09:30:00'),
-(9, 'SNB00223002', true, 'Михайлов Д.С.', '2023-02-19 10:15:00'),
-(10, 'SNB00223003', true, 'Соколов А.В.', '2023-03-09 11:45:00'),
-(11, 'SNB00223004', true, 'Михайлов Д.С.', '2023-04-04 13:20:00'),
-(12, 'SNB00223005', true, 'Соколов А.В.', '2023-05-11 14:30:00'),
-(13, 'SNB00223006', true, 'Михайлов Д.С.', '2023-06-17 15:45:00'),
-(14, 'SNB00223007', true, 'Соколов А.В.', '2023-07-21 10:00:00'),
-(15, 'SNB00223008', true, 'Михайлов Д.С.', '2023-08-29 16:20:00'),
-(16, 'SNB00223009', true, 'Соколов А.В.', '2024-01-09 11:00:00'),
-(17, 'SNB00223010', true, 'Михайлов Д.С.', '2024-02-14 14:30:00');
+(11, 'SNB00223001', true, 'Соколов А.В.', '2023-01-14 09:30:00'),
+(12, 'SNB00223002', true, 'Михайлов Д.С.', '2023-02-19 10:15:00'),
+(13, 'SNB00223003', true, 'Соколов А.В.', '2023-03-09 11:45:00'),
+(14, 'SNB00223004', true, 'Михайлов Д.С.', '2023-04-04 13:20:00'),
+(15, 'SNB00223005', true, 'Соколов А.В.', '2023-05-11 14:30:00'),
+(16, 'SNB00223006', true, 'Михайлов Д.С.', '2023-06-17 15:45:00'),
+(17, 'SNB00223007', true, 'Соколов А.В.', '2023-07-21 10:00:00'),
+(18, 'SNB00223008', true, 'Михайлов Д.С.', '2023-08-29 16:20:00'),
+(19, 'SNB00223009', true, 'Соколов А.В.', '2024-01-09 11:00:00'),
+(20, 'SNB00223010', true, 'Михайлов Д.С.', '2024-02-14 14:30:00');
 
 INSERT INTO serial_num_pcb (device_id, serial_num_pcb) VALUES
-(8, 'PCBSN00223001'), (9, 'PCBSN00223002'), (10, 'PCBSN00223003'),
-(11, 'PCBSN00223004'), (12, 'PCBSN00223005'), (13, 'PCBSN00223006'),
-(14, 'PCBSN00223007'), (15, 'PCBSN00223008'), (16, 'PCBSN00223009'),
-(17, 'PCBSN00223010');
+(11, 'PCBSN00223001'), (12, 'PCBSN00223002'), (13, 'PCBSN00223003'),
+(14, 'PCBSN00223004'), (15, 'PCBSN00223005'), (16, 'PCBSN00223006'),
+(17, 'PCBSN00223007'), (18, 'PCBSN00223008'), (19, 'PCBSN00223009'),
+(20, 'PCBSN00223010');
 
 INSERT INTO serial_num_router (device_id, serial_num_router) VALUES
-(8, 'SWRTR00223001'), (9, 'SWRTR00223002'), (10, 'SWRTR00223003'),
-(11, 'SWRTR00223004'), (12, 'SWRTR00223005'), (13, 'SWRTR00223006'),
-(14, 'SWRTR00223007'), (15, 'SWRTR00223008'), (16, 'SWRTR00223009'),
-(17, 'SWRTR00223010');
+(11, 'SWRTR00223001'), (12, 'SWRTR00223002'), (13, 'SWRTR00223003'),
+(14, 'SWRTR00223004'), (15, 'SWRTR00223005'), (16, 'SWRTR00223006'),
+(17, 'SWRTR00223007'), (18, 'SWRTR00223008'), (19, 'SWRTR00223009'),
+(20, 'SWRTR00223010');
 
 INSERT INTO serial_num_package (device_id, serial_num_package) VALUES
-(8, 'PKG00223001'), (9, 'PKG00223002'), (10, 'PKG00223003'),
-(11, 'PKG00223004'), (12, 'PKG00223005'), (13, 'PKG00223006'),
-(14, 'PKG00223007'), (15, 'PKG00223008'), (16, 'PKG00223009'),
-(17, 'PKG00223010');
+(11, 'PKG00223001'), (12, 'PKG00223002'), (13, 'PKG00223003'),
+(14, 'PKG00223004'), (15, 'PKG00223005'), (16, 'PKG00223006'),
+(17, 'PKG00223007'), (18, 'PKG00223008'), (19, 'PKG00223009'),
+(20, 'PKG00223010');
 
 INSERT INTO serial_num_case (device_id, serial_num_case) VALUES
-(8, 'CASE00223001'), (9, 'CASE00223002'), (10, 'CASE00223003'),
-(11, 'CASE00223004'), (12, 'CASE00223005'), (13, 'CASE00223006'),
-(14, 'CASE00223007'), (15, 'CASE00223008'), (16, 'CASE00223009'),
-(17, 'CASE00223010');
+(11, 'CASE00223001'), (12, 'CASE00223002'), (13, 'CASE00223003'),
+(14, 'CASE00223004'), (15, 'CASE00223005'), (16, 'CASE00223006'),
+(17, 'CASE00223007'), (18, 'CASE00223008'), (19, 'CASE00223009'),
+(20, 'CASE00223010');
 
 INSERT INTO serial_num_bp (device_id, serial_num_bp) VALUES
-(8, 'BP00223001'), (9, 'BP00223002'), (10, 'BP00223003'),
-(11, 'BP00223004'), (12, 'BP00223005'), (13, 'BP00223006'),
-(14, 'BP00223007'), (15, 'BP00223008'), (16, 'BP00223009'),
-(17, 'BP00223010');
+(11, 'BP00223001'), (12, 'BP00223002'), (13, 'BP00223003'),
+(14, 'BP00223004'), (15, 'BP00223005'), (16, 'BP00223006'),
+(17, 'BP00223007'), (18, 'BP00223008'), (19, 'BP00223009'),
+(20, 'BP00223010');
 
 INSERT INTO serial_num_pki (device_id, serial_num_pki) VALUES
-(8, 'PKI00223001'), (9, 'PKI00223002'), (10, 'PKI00223003'),
-(11, 'PKI00223004'), (12, 'PKI00223005'), (13, 'PKI00223006'),
-(14, 'PKI00223007'), (15, 'PKI00223008'), (16, 'PKI00223009'),
-(17, 'PKI00223010');
+(11, 'PKI00223001'), (12, 'PKI00223002'), (13, 'PKI00223003'),
+(14, 'PKI00223004'), (15, 'PKI00223005'), (16, 'PKI00223006'),
+(17, 'PKI00223007'), (18, 'PKI00223008'), (19, 'PKI00223009'),
+(20, 'PKI00223010');
 
--- Обновление внешних ключей для маршрутизаторов
+-- Обновление внешних ключей для устройств
+-- Обновляем для RS маршрутизаторов (1-10)
 UPDATE devices SET 
     eth1addr_id = (SELECT id FROM macs WHERE device_id = 1 AND interface_name = 'eth0'),
     eth2addr_id = (SELECT id FROM macs WHERE device_id = 1 AND interface_name = 'eth1'),
@@ -861,11 +902,10 @@ UPDATE devices SET
     serial_num_pki_id = (SELECT id FROM serial_num_pki WHERE device_id = 7)
 WHERE id = 7;
 
--- Обновление внешних ключей для коммутаторов
 UPDATE devices SET 
     eth1addr_id = (SELECT id FROM macs WHERE device_id = 8 AND interface_name = 'eth0'),
     eth2addr_id = (SELECT id FROM macs WHERE device_id = 8 AND interface_name = 'eth1'),
-    ethaddr_id = (SELECT id FROM macs WHERE device_id = 8 AND interface_name = 'management'),
+    ethaddr_id = (SELECT id FROM macs WHERE device_id = 8 AND interface_name = 'eth0'),
     serial_num_board_id = (SELECT id FROM serial_num_board WHERE device_id = 8),
     serial_num_pcb_id = (SELECT id FROM serial_num_pcb WHERE device_id = 8),
     serial_num_router_id = (SELECT id FROM serial_num_router WHERE device_id = 8),
@@ -878,7 +918,7 @@ WHERE id = 8;
 UPDATE devices SET 
     eth1addr_id = (SELECT id FROM macs WHERE device_id = 9 AND interface_name = 'eth0'),
     eth2addr_id = (SELECT id FROM macs WHERE device_id = 9 AND interface_name = 'eth1'),
-    ethaddr_id = (SELECT id FROM macs WHERE device_id = 9 AND interface_name = 'management'),
+    ethaddr_id = (SELECT id FROM macs WHERE device_id = 9 AND interface_name = 'eth0'),
     serial_num_board_id = (SELECT id FROM serial_num_board WHERE device_id = 9),
     serial_num_pcb_id = (SELECT id FROM serial_num_pcb WHERE device_id = 9),
     serial_num_router_id = (SELECT id FROM serial_num_router WHERE device_id = 9),
@@ -891,7 +931,7 @@ WHERE id = 9;
 UPDATE devices SET 
     eth1addr_id = (SELECT id FROM macs WHERE device_id = 10 AND interface_name = 'eth0'),
     eth2addr_id = (SELECT id FROM macs WHERE device_id = 10 AND interface_name = 'eth1'),
-    ethaddr_id = (SELECT id FROM macs WHERE device_id = 10 AND interface_name = 'management'),
+    ethaddr_id = (SELECT id FROM macs WHERE device_id = 10 AND interface_name = 'eth0'),
     serial_num_board_id = (SELECT id FROM serial_num_board WHERE device_id = 10),
     serial_num_pcb_id = (SELECT id FROM serial_num_pcb WHERE device_id = 10),
     serial_num_router_id = (SELECT id FROM serial_num_router WHERE device_id = 10),
@@ -901,6 +941,7 @@ UPDATE devices SET
     serial_num_pki_id = (SELECT id FROM serial_num_pki WHERE device_id = 10)
 WHERE id = 10;
 
+-- Обновляем для SA коммутаторов (11-20) с management интерфейсом
 UPDATE devices SET 
     eth1addr_id = (SELECT id FROM macs WHERE device_id = 11 AND interface_name = 'eth0'),
     eth2addr_id = (SELECT id FROM macs WHERE device_id = 11 AND interface_name = 'eth1'),
@@ -992,6 +1033,45 @@ UPDATE devices SET
     serial_num_pki_id = (SELECT id FROM serial_num_pki WHERE device_id = 17)
 WHERE id = 17;
 
+UPDATE devices SET 
+    eth1addr_id = (SELECT id FROM macs WHERE device_id = 18 AND interface_name = 'eth0'),
+    eth2addr_id = (SELECT id FROM macs WHERE device_id = 18 AND interface_name = 'eth1'),
+    ethaddr_id = (SELECT id FROM macs WHERE device_id = 18 AND interface_name = 'management'),
+    serial_num_board_id = (SELECT id FROM serial_num_board WHERE device_id = 18),
+    serial_num_pcb_id = (SELECT id FROM serial_num_pcb WHERE device_id = 18),
+    serial_num_router_id = (SELECT id FROM serial_num_router WHERE device_id = 18),
+    serial_num_package_id = (SELECT id FROM serial_num_package WHERE device_id = 18),
+    serial_num_case_id = (SELECT id FROM serial_num_case WHERE device_id = 18),
+    serial_num_bp_id = (SELECT id FROM serial_num_bp WHERE device_id = 18),
+    serial_num_pki_id = (SELECT id FROM serial_num_pki WHERE device_id = 18)
+WHERE id = 18;
+
+UPDATE devices SET 
+    eth1addr_id = (SELECT id FROM macs WHERE device_id = 19 AND interface_name = 'eth0'),
+    eth2addr_id = (SELECT id FROM macs WHERE device_id = 19 AND interface_name = 'eth1'),
+    ethaddr_id = (SELECT id FROM macs WHERE device_id = 19 AND interface_name = 'management'),
+    serial_num_board_id = (SELECT id FROM serial_num_board WHERE device_id = 19),
+    serial_num_pcb_id = (SELECT id FROM serial_num_pcb WHERE device_id = 19),
+    serial_num_router_id = (SELECT id FROM serial_num_router WHERE device_id = 19),
+    serial_num_package_id = (SELECT id FROM serial_num_package WHERE device_id = 19),
+    serial_num_case_id = (SELECT id FROM serial_num_case WHERE device_id = 19),
+    serial_num_bp_id = (SELECT id FROM serial_num_bp WHERE device_id = 19),
+    serial_num_pki_id = (SELECT id FROM serial_num_pki WHERE device_id = 19)
+WHERE id = 19;
+
+UPDATE devices SET 
+    eth1addr_id = (SELECT id FROM macs WHERE device_id = 20 AND interface_name = 'eth0'),
+    eth2addr_id = (SELECT id FROM macs WHERE device_id = 20 AND interface_name = 'eth1'),
+    ethaddr_id = (SELECT id FROM macs WHERE device_id = 20 AND interface_name = 'management'),
+    serial_num_board_id = (SELECT id FROM serial_num_board WHERE device_id = 20),
+    serial_num_pcb_id = (SELECT id FROM serial_num_pcb WHERE device_id = 20),
+    serial_num_router_id = (SELECT id FROM serial_num_router WHERE device_id = 20),
+    serial_num_package_id = (SELECT id FROM serial_num_package WHERE device_id = 20),
+    serial_num_case_id = (SELECT id FROM serial_num_case WHERE device_id = 20),
+    serial_num_bp_id = (SELECT id FROM serial_num_bp WHERE device_id = 20),
+    serial_num_pki_id = (SELECT id FROM serial_num_pki WHERE device_id = 20)
+WHERE id = 20;
+
 -- Добавление внешних ключей для связанных таблиц
 ALTER TABLE macs ADD FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE;
 ALTER TABLE serial_num_board ADD FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE;
@@ -1014,20 +1094,17 @@ ADD FOREIGN KEY (serial_num_case_id) REFERENCES serial_num_case(id),
 ADD FOREIGN KEY (serial_num_bp_id) REFERENCES serial_num_bp(id),
 ADD FOREIGN KEY (serial_num_pki_id) REFERENCES serial_num_pki(id);
 
--- Вставка данных о сборке для маршрутизаторов
+-- Вставка данных о сборке
 INSERT INTO assemblers (employee_id, device_id, assembly_date) VALUES
 (1, 1, '2002-06-12'), (2, 2, '2003-07-17'), (1, 3, '2004-03-07'),
 (2, 4, '2005-09-22'), (1, 5, '2006-05-15'), (2, 6, '2007-02-10'),
-(1, 7, '2008-08-03');
+(1, 7, '2008-08-03'), (9, 8, '2023-01-14'), (10, 9, '2023-03-19'),
+(9, 10, '2023-06-09'), (9, 11, '2023-01-14'), (10, 12, '2023-02-19'),
+(9, 13, '2023-03-09'), (10, 14, '2023-04-04'), (9, 15, '2023-05-11'),
+(10, 16, '2023-06-17'), (9, 17, '2023-07-21'), (10, 18, '2023-08-29'),
+(9, 19, '2024-01-09'), (10, 20, '2024-02-14');
 
--- Вставка данных о сборке для коммутаторов
-INSERT INTO assemblers (employee_id, device_id, assembly_date) VALUES
-(9, 8, '2023-01-14'), (10, 9, '2023-02-19'), (9, 10, '2023-03-09'),
-(10, 11, '2023-04-04'), (9, 12, '2023-05-11'), (10, 13, '2023-06-17'),
-(9, 14, '2023-07-21'), (10, 15, '2023-08-29'), (9, 16, '2024-01-09'),
-(10, 17, '2024-02-14');
-
--- Вставка данных о диагностике для маршрутизаторов
+-- Вставка данных о диагностике
 INSERT INTO electricians (employee_id, device_id, diagnosis_date, diagnosis_result) VALUES
 (3, 1, '2002-06-13', 'Диагностика пройдена успешно'),
 (4, 2, '2003-07-18', 'Все системы функционируют нормально'),
@@ -1035,22 +1112,22 @@ INSERT INTO electricians (employee_id, device_id, diagnosis_date, diagnosis_resu
 (4, 4, '2005-09-23', 'Оборудование соответствует ТУ'),
 (3, 5, '2006-05-16', 'Диагностика пройдена'),
 (4, 6, '2007-02-11', 'Все параметры в норме'),
-(3, 7, '2008-08-04', 'Диагностика успешна');
+(3, 7, '2008-08-04', 'Диагностика успешна'),
+(11, 8, '2023-01-14', 'Диагностика успешно пройдена'),
+(11, 9, '2023-03-19', 'Все системы функционируют нормально'),
+(11, 10, '2023-06-09', 'Диагностика без замечаний'),
+(11, 11, '2023-01-14', 'Диагностика успешно пройдена, PoE работает корректно'),
+(11, 12, '2023-02-19', 'Все порты функционируют нормально'),
+(11, 13, '2023-03-09', 'Диагностика без замечаний, температура в норме'),
+(11, 14, '2023-04-04', 'PoE питание в норме, коммутатор готов к работе'),
+(11, 15, '2023-05-11', 'Все системы функционируют нормально'),
+(11, 16, '2023-06-17', 'Диагностика пройдена успешно'),
+(11, 17, '2023-07-21', 'Соответствует техническим условиям'),
+(11, 18, '2023-08-29', 'Диагностика пройдена, ошибок не обнаружено'),
+(11, 19, '2024-01-09', 'PoE функционирует корректно'),
+(11, 20, '2024-02-14', 'Диагностика успешна');
 
--- Вставка данных о диагностике для коммутаторов
-INSERT INTO electricians (employee_id, device_id, diagnosis_date, diagnosis_result) VALUES
-(11, 8, '2023-01-14', 'Диагностика успешно пройдена, PoE работает корректно'),
-(11, 9, '2023-02-19', 'Все порты функционируют нормально'),
-(11, 10, '2023-03-09', 'Диагностика без замечаний, температура в норме'),
-(11, 11, '2023-04-04', 'PoE питание в норме, коммутатор готов к работе'),
-(11, 12, '2023-05-11', 'Все системы функционируют нормально'),
-(11, 13, '2023-06-17', 'Диагностика пройдена успешно'),
-(11, 14, '2023-07-21', 'Соответствует техническим условиям'),
-(11, 15, '2023-08-29', 'Диагностика пройдена, ошибок не обнаружено'),
-(11, 16, '2024-01-09', 'PoE функционирует корректно'),
-(11, 17, '2024-02-14', 'Диагностика успешна');
-
--- Вставка данных о ПСИ для маршрутизаторов
+-- Вставка данных о ПСИ
 INSERT INTO psi_tests (employee_id, device_id, test_date, test_result, protocol_number) VALUES
 (5, 1, '2002-06-14', 'Испытания пройдены', 'PSI-2002-001'),
 (5, 2, '2003-07-19', 'Соответствует требованиям', 'PSI-2003-002'),
@@ -1058,35 +1135,35 @@ INSERT INTO psi_tests (employee_id, device_id, test_date, test_result, protocol_
 (5, 4, '2005-09-24', 'Испытания пройдены', 'PSI-2005-004'),
 (5, 5, '2006-05-17', 'Соответствует спецификациям', 'PSI-2006-005'),
 (5, 6, '2007-02-12', 'Испытания пройдены', 'PSI-2007-006'),
-(5, 7, '2008-08-05', 'Соответствует требованиям', 'PSI-2008-007');
-
--- Вставка данных о ПСИ для коммутаторов
-INSERT INTO psi_tests (employee_id, device_id, test_date, test_result, protocol_number) VALUES
+(5, 7, '2008-08-05', 'Соответствует требованиям', 'PSI-2008-007'),
 (12, 8, '2023-01-15', 'Испытания пройдены, соответствует спецификации', 'PSI-2023-008'),
-(12, 9, '2023-02-20', 'Успешное завершение ПСИ', 'PSI-2023-009'),
-(12, 10, '2023-03-10', 'Испытания пройдены', 'PSI-2023-010'),
-(12, 11, '2023-04-05', 'Соответствует требованиям ТУ', 'PSI-2023-011'),
-(12, 12, '2023-05-12', 'Испытания пройдены успешно', 'PSI-2023-012'),
-(12, 13, '2023-06-18', 'Соответствует спецификации', 'PSI-2023-013'),
-(12, 14, '2023-07-22', 'Испытания пройдены', 'PSI-2023-014'),
-(12, 15, '2023-08-30', 'Успешное завершение ПСИ', 'PSI-2023-015'),
-(12, 16, '2024-01-10', 'Испытания пройдены', 'PSI-2024-001'),
-(12, 17, '2024-02-15', 'Соответствует требованиям', 'PSI-2024-002');
+(12, 9, '2023-03-20', 'Успешное завершение ПСИ', 'PSI-2023-009'),
+(12, 10, '2023-06-10', 'Испытания пройдены', 'PSI-2023-010'),
+(12, 11, '2023-01-15', 'Испытания пройдены, соответствует спецификации', 'PSI-2023-011'),
+(12, 12, '2023-02-20', 'Успешное завершение ПСИ', 'PSI-2023-012'),
+(12, 13, '2023-03-10', 'Испытания пройдены', 'PSI-2023-013'),
+(12, 14, '2023-04-05', 'Соответствует требованиям ТУ', 'PSI-2023-014'),
+(12, 15, '2023-05-12', 'Испытания пройдены успешно', 'PSI-2023-015'),
+(12, 16, '2023-06-18', 'Соответствует спецификации', 'PSI-2023-016'),
+(12, 17, '2023-07-22', 'Испытания пройдены', 'PSI-2023-017'),
+(12, 18, '2023-08-30', 'Успешное завершение ПСИ', 'PSI-2023-018'),
+(12, 19, '2024-01-10', 'Испытания пройдены', 'PSI-2024-001'),
+(12, 20, '2024-02-15', 'Соответствует требованиям', 'PSI-2024-002');
 
 -- Вставка данных о программировании для коммутаторов
 INSERT INTO programmers (device_id, ip, place, serial_number, stand, type) VALUES
-(8, '192.168.1.108', 'Цех программирования №2', 'PRG008', 'Стенд А-8', 'ISN42124T5C4'),
-(9, '192.168.1.109', 'Цех программирования №2', 'PRG009', 'Стенд А-9', 'ISN42124T5C4'),
-(10, '192.168.1.110', 'Цех программирования №2', 'PRG010', 'Стенд А-10', 'ISN42124T5C4'),
-(11, '192.168.1.111', 'Цех программирования №3', 'PRG011', 'Стенд Б-1', 'ISN42124T5P5'),
-(12, '192.168.1.112', 'Цех программирования №3', 'PRG012', 'Стенд Б-2', 'ISN42124T5P5'),
-(13, '192.168.1.113', 'Цех программирования №3', 'PRG013', 'Стенд Б-3', 'ISN42124T5P5'),
-(14, '192.168.1.114', 'Цех программирования №4', 'PRG014', 'Стенд В-1', 'ISN42124X5'),
-(15, '192.168.1.115', 'Цех программирования №4', 'PRG015', 'Стенд В-2', 'ISN42124X5'),
-(16, '192.168.1.116', 'Цех программирования №2', 'PRG016', 'Стенд А-11', 'ISN42124T5C4'),
-(17, '192.168.1.117', 'Цех программирования №3', 'PRG017', 'Стенд Б-4', 'ISN42124T5P5');
+(11, '192.168.1.111', 'Цех программирования №2', 'PRG011', 'Стенд А-11', 'ISN42124T5C4'),
+(12, '192.168.1.112', 'Цех программирования №2', 'PRG012', 'Стенд А-12', 'ISN42124T5C4'),
+(13, '192.168.1.113', 'Цех программирования №2', 'PRG013', 'Стенд А-13', 'ISN42124T5C4'),
+(14, '192.168.1.114', 'Цех программирования №3', 'PRG014', 'Стенд Б-1', 'ISN42124T5P5'),
+(15, '192.168.1.115', 'Цех программирования №3', 'PRG015', 'Стенд Б-2', 'ISN42124T5P5'),
+(16, '192.168.1.116', 'Цех программирования №3', 'PRG016', 'Стенд Б-3', 'ISN42124T5P5'),
+(17, '192.168.1.117', 'Цех программирования №4', 'PRG017', 'Стенд В-1', 'ISN42124X5'),
+(18, '192.168.1.118', 'Цех программирования №4', 'PRG018', 'Стенд В-2', 'ISN42124X5'),
+(19, '192.168.1.119', 'Цех программирования №2', 'PRG019', 'Стенд А-19', 'ISN42124T5C4'),
+(20, '192.168.1.120', 'Цех программирования №3', 'PRG020', 'Стенд Б-4', 'ISN42124T5P5');
 
--- Вставка статистики для маршрутизаторов
+-- Вставка статистики
 INSERT INTO statistic (device_id, date_time, device_type, manufacturer, modification_type, serial_number, stand, status) VALUES
 (1, '2002-06-15 16:00:00', 'Сервисный маршрутизатор', 'АО НПП Исток', 'ISN4150873 +10n', 'RS101016430001', 'Стенд 1', true),
 (2, '2003-07-20 16:30:00', 'Сервисный маршрутизатор', 'АО НПП Исток', 'ISN4150873 +10n', 'RS102016430002', 'Стенд 2', true),
@@ -1094,57 +1171,61 @@ INSERT INTO statistic (device_id, date_time, device_type, manufacturer, modifica
 (4, '2005-09-25 17:00:00', 'Сервисный маршрутизатор', 'АО НПП Исток', 'ISN4150873 +10n', 'RS104016430004', 'Стенд 4', true),
 (5, '2006-05-18 16:15:00', 'Сервисный маршрутизатор', 'АО НПП Исток', 'ISN4150873 +10n', 'RS105016430005', 'Стенд 5', true),
 (6, '2007-02-12 14:30:00', 'Сервисный маршрутизатор', 'АО НПП Исток', 'ISN4150873 +10n', 'RS106016430006', 'Стенд 6', true),
-(7, '2008-08-05 15:45:00', 'Сервисный маршрутизатор', 'АО НПП Исток', 'ISN4150873 +10n', 'RS107016430007', 'Стенд 7', true);
-
--- Вставка статистики для коммутаторов
-INSERT INTO statistic (device_id, date_time, device_type, manufacturer, modification_type, serial_number, stand, status) VALUES
-(8, '2023-01-15 16:00:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124T5C4', 'SA101026430001', 'Стенд А-8', true),
-(9, '2023-02-20 16:30:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124T5C4', 'SA101026430002', 'Стенд А-9', true),
-(10, '2023-03-10 15:45:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124T5C4', 'SA101026430003', 'Стенд А-10', true),
-(11, '2023-04-05 17:00:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124T5P5', 'SA102026430004', 'Стенд Б-1', true),
-(12, '2023-05-12 16:15:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124T5P5', 'SA102026430005', 'Стенд Б-2', true),
-(13, '2023-06-18 17:30:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124T5P5', 'SA102026430006', 'Стенд Б-3', true),
-(14, '2023-07-22 16:45:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124X5', 'SA103026430007', 'Стенд В-1', true),
-(15, '2023-08-30 17:15:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124X5', 'SA103026430008', 'Стенд В-2', true),
-(16, '2024-01-10 16:30:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124T5C4', 'SA101026430009', 'Стенд А-11', true),
-(17, '2024-02-15 17:00:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124T5P5', 'SA102026430010', 'Стенд Б-4', true);
+(7, '2008-08-05 15:45:00', 'Сервисный маршрутизатор', 'АО НПП Исток', 'ISN4150873 +10n', 'RS107016430007', 'Стенд 7', true),
+(8, '2023-01-15 16:00:00', 'Сервисный маршрутизатор', 'АО НПП Исток', 'ISN50502T5', 'RS108026430008', 'Стенд 8', true),
+(9, '2023-03-20 16:30:00', 'Сервисный маршрутизатор', 'АО НПП Исток', 'ISN50502T5', 'RS109026430009', 'Стенд 9', true),
+(10, '2023-06-10 17:00:00', 'Сервисный маршрутизатор', 'АО НПП Исток', 'ISN50502T5', 'RS110026430010', 'Стенд 10', true),
+(11, '2023-01-15 16:00:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124T5C4', 'SA101026430001', 'Стенд А-11', true),
+(12, '2023-02-20 16:30:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124T5C4', 'SA101026430002', 'Стенд А-12', true),
+(13, '2023-03-10 15:45:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124T5C4', 'SA101026430003', 'Стенд А-13', true),
+(14, '2023-04-05 17:00:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124T5P5', 'SA102026430004', 'Стенд Б-1', true),
+(15, '2023-05-12 16:15:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124T5P5', 'SA102026430005', 'Стенд Б-2', true),
+(16, '2023-06-18 17:30:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124T5P5', 'SA102026430006', 'Стенд Б-3', true),
+(17, '2023-07-22 16:45:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124X5', 'SA103026430007', 'Стенд В-1', true),
+(18, '2023-08-30 17:15:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124X5', 'SA103026430008', 'Стенд В-2', true),
+(19, '2024-01-10 16:30:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124T5C4', 'SA101026430009', 'Стенд А-19', true),
+(20, '2024-02-15 17:00:00', 'Коммутатор доступа', 'АО НПП Исток', 'ISN42124T5P5', 'SA102026430010', 'Стенд Б-4', true);
 
 -- Добавление истории операций
 INSERT INTO history (device_id, commentary, date_time, device_serial_num, file, message) VALUES
 (1, 'Первоначальная настройка', '2002-06-15 14:30:00', 'RS101016430001', 'config_rs001.txt', 'Устройство успешно сконфигурировано'),
 (2, 'Обновление прошивки', '2003-07-20 15:00:00', 'RS102016430002', 'firmware_update.log', 'Прошивка обновлена до версии 1.3'),
 (3, 'Калибровка портов', '2004-03-10 14:45:00', 'RS103016430003', 'calibration.log', 'Калибровка выполнена успешно'),
-(8, 'Первоначальная настройка PoE', '2023-01-15 15:30:00', 'SA101026430001', 'poe_config.txt', 'PoE сконфигурирован для всех портов'),
-(9, 'Тестирование производительности', '2023-02-20 16:00:00', 'SA101026430002', 'performance_test.log', 'Пропускная способность в норме'),
-(11, 'Настройка VLAN', '2023-04-05 17:30:00', 'SA102026430004', 'vlan_config.txt', 'Настроено 16 VLAN'),
-(14, 'Обновление ПО', '2023-07-22 16:00:00', 'SA103026430007', 'update_4.0.log', 'Обновление до версии 4.0 успешно');
+(8, 'Первоначальная настройка', '2023-01-15 15:30:00', 'RS108026430008', 'config_rs008.txt', 'Устройство успешно сконфигурировано'),
+(9, 'Обновление ПО', '2023-03-20 16:00:00', 'RS109026430009', 'update.log', 'Обновление до версии 6.4'),
+(11, 'Первоначальная настройка PoE', '2023-01-15 15:30:00', 'SA101026430001', 'poe_config.txt', 'PoE сконфигурирован для всех портов'),
+(12, 'Тестирование производительности', '2023-02-20 16:00:00', 'SA101026430002', 'performance_test.log', 'Пропускная способность в норме'),
+(14, 'Настройка VLAN', '2023-04-05 17:30:00', 'SA102026430004', 'vlan_config.txt', 'Настроено 16 VLAN'),
+(17, 'Обновление ПО', '2023-07-22 16:00:00', 'SA103026430007', 'update_4.0.log', 'Обновление до версии 4.0 успешно');
 
--- Добавление информации о ремонтах (для демонстрации)
+-- Добавление информации о ремонтах
 INSERT INTO repair (device_id, date_time, date_time_repair, device_serial_num, message) VALUES
 (3, '2005-06-10 10:00:00', '2005-06-12 14:00:00', 'RS103016430003', 'Замена блока питания'),
 (5, '2008-03-15 11:30:00', '2008-03-16 16:30:00', 'RS105016430005', 'Профилактическое обслуживание'),
-(12, '2023-08-01 09:00:00', '2023-08-02 13:00:00', 'SA102026430005', 'Калибровка PoE портов');
+(15, '2023-08-01 09:00:00', '2023-08-02 13:00:00', 'SA102026430005', 'Калибровка PoE портов');
 
 -- Добавление ошибок устройств
 INSERT INTO device_error (device_id, date, debug_info, error_code, ip, serial_num, stand, status) VALUES
 (3, '2005-06-10', 'Power supply failure', 'ERR-001', '192.168.1.103', 'RS103016430003', 'Стенд 3', false),
-(12, '2023-08-01', 'PoE port 5 overcurrent', 'ERR-023', '192.168.1.112', 'SA102026430005', 'Стенд Б-2', true),
-(15, '2023-09-15', 'Temperature warning', 'ERR-045', '192.168.1.115', 'SA103026430008', 'Стенд В-2', true);
+(15, '2023-08-01', 'PoE port 5 overcurrent', 'ERR-023', '192.168.1.115', 'SA102026430005', 'Стенд Б-2', true),
+(18, '2023-09-15', 'Temperature warning', 'ERR-045', '192.168.1.118', 'SA103026430008', 'Стенд В-2', true);
 
 -- Добавление Xray данных
 INSERT INTO xray (device_id, file, serial_num) VALUES
 (1, 'xray_rs001_2002.jpg', 'XR00123001'),
 (2, 'xray_rs002_2003.jpg', 'XR00123002'),
 (3, 'xray_rs003_2004.jpg', 'XR00123003'),
-(8, 'xray_sa001_2023.jpg', 'XR00223001'),
-(9, 'xray_sa002_2023.jpg', 'XR00223002'),
-(11, 'xray_sa004_2023.jpg', 'XR00223003'),
-(14, 'xray_sa007_2023.jpg', 'XR00223004');
+(8, 'xray_rs008_2023.jpg', 'XR00123008'),
+(9, 'xray_rs009_2023.jpg', 'XR00123009'),
+(11, 'xray_sa001_2023.jpg', 'XR00223001'),
+(12, 'xray_sa002_2023.jpg', 'XR00223002'),
+(14, 'xray_sa004_2023.jpg', 'XR00223003'),
+(17, 'xray_sa007_2023.jpg', 'XR00223004');
 
 -- Вывод информации о количестве добавленных записей
 SELECT 'БД успешно создана и заполнена!' as 'Статус';
 SELECT COUNT(*) as 'Всего устройств' FROM devices;
-SELECT COUNT(*) as 'Маршрутизаторов' FROM devices WHERE device_type_id = (SELECT id FROM device_type WHERE code = 'RS');
-SELECT COUNT(*) as 'Коммутаторов доступа' FROM devices WHERE device_type_id = (SELECT id FROM device_type WHERE code = 'SA');
+SELECT COUNT(*) as 'Сервисных маршрутизаторов (RS)' FROM devices WHERE device_type_id = (SELECT id FROM device_type WHERE code = 'RS');
+SELECT COUNT(*) as 'Коммутаторов доступа (SA)' FROM devices WHERE device_type_id = (SELECT id FROM device_type WHERE code = 'SA');
 SELECT COUNT(*) as 'Сотрудников' FROM employees;
 SELECT COUNT(*) as 'MAC-адресов' FROM macs;

@@ -1141,3 +1141,38 @@ html, body {
         max-width: 150px;
     }
 }
+
+
+        /* Стили для типов изделий */
+        .product-types-page .router-type {
+            background: linear-gradient(90deg, rgba(183, 161, 135, 0.05) 0%, transparent 100%);
+        }
+        
+        .product-types-page .switch-type {
+            background: linear-gradient(90deg, rgba(124, 181, 124, 0.05) 0%, transparent 100%);
+        }
+        
+        .product-types-page .data-table td:first-child {
+            font-weight: 500;
+        }
+        
+        .product-types-page .status-badge.info {
+            background: #e3f2fd;
+            color: #1976d2;
+            font-family: monospace;
+            font-weight: 600;
+        }
+        
+        .product-types-page .filter-info ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        
+        .product-types-page .filter-info li {
+            padding: 4px 0;
+            color: var(--text-secondary);
+        }
+        
+        .product-types-page .filter-info li strong {
+            color: var(--primary);
+        }

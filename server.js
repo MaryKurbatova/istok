@@ -1,8 +1,40 @@
 const express = require('express');
 const path = require('path');
 const mysql = require('mysql2');
+const multer = require('multer');
+const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Настройка multer для загрузки файлов
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const uploadDir = path.join(__dirname, 'uploads');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({ 
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|gif|webp/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        if (mimetype && extname) {
+            return cb(null, true);
+        } else {
+            cb(new Error('Только изображения!'));
+        }
+    }
+});
 
 // Настройки подключения к БД
 const db = mysql.createConnection({
@@ -25,6 +57,7 @@ const db = mysql.createConnection({
 // Middleware
 app.use(express.static(__dirname));
 app.use('/images', express.static(path.join(__dirname, 'images')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
@@ -32,7 +65,6 @@ app.use(express.json());
 const sessions = new Map();
 
 // ===== MIDDLEWARE ДЛЯ ПРОВЕРКИ ПРАВ =====
-
 function authMiddleware(req, res, next) {
     const token = req.headers.authorization;
     if (!token || !sessions.has(token)) {
@@ -84,7 +116,6 @@ app.post('/login', async (req, res) => {
         
         if (rows.length > 0) {
             const user = rows[0];
-            
             const fullName = `${user.last_name} ${user.first_name}${user.middle_name ? ' ' + user.middle_name : ''}`;
             const token = Buffer.from(`${user.id}:${Date.now()}:${Math.random()}`).toString('base64');
             
@@ -101,31 +132,19 @@ app.post('/login', async (req, res) => {
             
             res.redirect(`/dashboard?token=${encodeURIComponent(token)}`);
         } else {
-            res.send(`
-                <script>
-                    alert("Неверный логин или пароль!");
-                    window.location = "/";
-                </script>
-            `);
+            res.send(`<script>alert("Неверный логин или пароль!"); window.location = "/";</script>`);
         }
     } catch (error) {
         console.error('Ошибка БД:', error);
-        res.send(`
-            <script>
-                alert("Ошибка сервера. Попробуйте позже.");
-                window.location = "/";
-            </script>
-        `);
+        res.send(`<script>alert("Ошибка сервера. Попробуйте позже."); window.location = "/";</script>`);
     }
 });
 
 app.get('/api/current-user', (req, res) => {
     const token = req.headers.authorization;
-    
     if (!token || !sessions.has(token)) {
         return res.status(401).json({ error: 'Не авторизован' });
     }
-    
     const user = sessions.get(token);
     res.json({
         id: user.id,
@@ -147,16 +166,10 @@ app.get('/dashboard', (req, res) => {
     res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
 
-
 app.post('/loginyara', async (req, res) => {
     const { username, password } = req.body;
-    
     try {
-        const [rows] = await db.query(
-            'SELECT * FROM employees WHERE username = ? AND password = ?',
-            [username, password]
-        );
-        
+        const [rows] = await db.query('SELECT * FROM employees WHERE username = ? AND password = ?', [username, password]);
         if (rows.length > 0) {
             const user = rows[0];
             res.send({id: user.id, username: user.username, password: user.password, role:user.role});
@@ -166,6 +179,20 @@ app.post('/loginyara', async (req, res) => {
     } catch (error) {
         console.error('Ошибка БД:', error);
         res.send('500');
+    }
+});
+
+// ===== API ДЛЯ ЗАГРУЗКИ ФОТО =====
+app.post('/api/upload-image', authMiddleware, canEdit, upload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'Файл не загружен' });
+        }
+        const imagePath = `/uploads/${req.file.filename}`;
+        res.json({ imagePath: imagePath });
+    } catch (error) {
+        console.error('Ошибка загрузки изображения:', error);
+        res.status(500).json({ error: 'Ошибка загрузки изображения' });
     }
 });
 
@@ -217,14 +244,14 @@ app.post('/api/devices', authMiddleware, canEdit, async (req, res) => {
     try {
         const {
             device_type_id, product_serial_number, type,
-            version_os, manufactures_date, diag
+            version_os, manufactures_date, diag, image_path
         } = req.body;
         
         const [result] = await db.query(
             `INSERT INTO devices 
-            (device_type_id, product_serial_number, type, version_os, manufactures_date, diag) 
-            VALUES (?, ?, ?, ?, ?, ?)`,
-            [device_type_id, product_serial_number, type, version_os, manufactures_date, diag || false]
+            (device_type_id, product_serial_number, type, version_os, manufactures_date, diag, image_path) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [device_type_id, product_serial_number, type, version_os, manufactures_date, diag || false, image_path || null]
         );
         
         res.status(201).json({ 
@@ -241,15 +268,15 @@ app.put('/api/devices/:id', authMiddleware, canEdit, async (req, res) => {
     try {
         const {
             device_type_id, product_serial_number, type,
-            version_os, manufactures_date, diag
+            version_os, manufactures_date, diag, image_path
         } = req.body;
         
         await db.query(
             `UPDATE devices SET 
             device_type_id = ?, product_serial_number = ?, type = ?,
-            version_os = ?, manufactures_date = ?, diag = ?
+            version_os = ?, manufactures_date = ?, diag = ?, image_path = ?
             WHERE id = ?`,
-            [device_type_id, product_serial_number, type, version_os, manufactures_date, diag, req.params.id]
+            [device_type_id, product_serial_number, type, version_os, manufactures_date, diag, image_path || null, req.params.id]
         );
         
         res.json({ message: 'Устройство обновлено' });
@@ -269,87 +296,6 @@ app.delete('/api/devices/:id', authMiddleware, adminOnly, async (req, res) => {
     }
 });
 
-// ----- СОТРУДНИКИ -----
-app.get('/api/employees', authMiddleware, adminOnly, async (req, res) => {
-    try {
-        const [rows] = await db.query('SELECT id, last_name, first_name, middle_name, position, username, role FROM employees ORDER BY last_name, first_name');
-        res.json(rows);
-    } catch (error) {
-        console.error('Ошибка получения сотрудников:', error);
-        res.status(500).json({ error: 'Ошибка сервера' });
-    }
-});
-
-app.get('/api/employees/:id', authMiddleware, adminOnly, async (req, res) => {
-    try {
-        const [rows] = await db.query('SELECT id, last_name, first_name, middle_name, position, username, role FROM employees WHERE id = ?', [req.params.id]);
-        res.json(rows[0]);
-    } catch (error) {
-        console.error('Ошибка получения сотрудника:', error);
-        res.status(500).json({ error: 'Ошибка сервера' });
-    }
-});
-
-app.post('/api/employees', authMiddleware, adminOnly, async (req, res) => {
-    try {
-        const { last_name, first_name, middle_name, position, username, password, role } = req.body;
-        
-        const [result] = await db.query(
-            `INSERT INTO employees 
-            (last_name, first_name, middle_name, position, username, password, role) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [last_name, first_name, middle_name, position, username, password, role || 'user']
-        );
-        
-        res.status(201).json({ 
-            id: result.insertId,
-            message: 'Сотрудник добавлен'
-        });
-    } catch (error) {
-        console.error('Ошибка добавления сотрудника:', error);
-        res.status(500).json({ error: 'Ошибка сервера' });
-    }
-});
-
-app.put('/api/employees/:id', authMiddleware, adminOnly, async (req, res) => {
-    try {
-        const { last_name, first_name, middle_name, position, username, password, role } = req.body;
-        
-        let query;
-        let params;
-        
-        if (password) {
-            query = `UPDATE employees SET 
-                    last_name = ?, first_name = ?, middle_name = ?,
-                    position = ?, username = ?, password = ?, role = ?
-                    WHERE id = ?`;
-            params = [last_name, first_name, middle_name, position, username, password, role, req.params.id];
-        } else {
-            query = `UPDATE employees SET 
-                    last_name = ?, first_name = ?, middle_name = ?,
-                    position = ?, username = ?, role = ?
-                    WHERE id = ?`;
-            params = [last_name, first_name, middle_name, position, username, role, req.params.id];
-        }
-        
-        await db.query(query, params);
-        res.json({ message: 'Сотрудник обновлен' });
-    } catch (error) {
-        console.error('Ошибка обновления сотрудника:', error);
-        res.status(500).json({ error: 'Ошибка сервера' });
-    }
-});
-
-app.delete('/api/employees/:id', authMiddleware, adminOnly, async (req, res) => {
-    try {
-        await db.query('DELETE FROM employees WHERE id = ?', [req.params.id]);
-        res.json({ message: 'Сотрудник удален' });
-    } catch (error) {
-        console.error('Ошибка удаления сотрудника:', error);
-        res.status(500).json({ error: 'Ошибка сервера' });
-    }
-});
-
 // ----- ТИПЫ УСТРОЙСТВ -----
 app.get('/api/device-types', authMiddleware, canView, async (req, res) => {
     try {
@@ -364,10 +310,7 @@ app.get('/api/device-types', authMiddleware, canView, async (req, res) => {
 app.post('/api/device-types', authMiddleware, adminOnly, async (req, res) => {
     try {
         const { name, code } = req.body;
-        const [result] = await db.query(
-            'INSERT INTO device_type (name, code) VALUES (?, ?)',
-            [name, code]
-        );
+        const [result] = await db.query('INSERT INTO device_type (name, code) VALUES (?, ?)', [name, code]);
         res.status(201).json({ id: result.insertId, message: 'Тип добавлен' });
     } catch (error) {
         console.error('Ошибка добавления типа:', error);
@@ -385,7 +328,7 @@ app.delete('/api/device-types/:id', authMiddleware, adminOnly, async (req, res) 
     }
 });
 
-// ----- МЕСЯЦЫ, ГОДЫ, ЭТАПЫ, МЕСТОПОЛОЖЕНИЯ (справочные данные) -----
+// ----- МЕСЯЦЫ, ГОДЫ, ЭТАПЫ, МЕСТОПОЛОЖЕНИЯ -----
 app.get('/api/production-months', authMiddleware, canView, async (req, res) => {
     try {
         const [rows] = await db.query('SELECT * FROM production_month ORDER BY id');
@@ -640,10 +583,7 @@ app.get('/api/production-places', authMiddleware, canView, async (req, res) => {
 app.post('/api/production-places', authMiddleware, adminOnly, async (req, res) => {
     try {
         const { code, name } = req.body;
-        const [result] = await db.query(
-            'INSERT INTO place_of_production (code, name) VALUES (?, ?)',
-            [code, name]
-        );
+        const [result] = await db.query('INSERT INTO place_of_production (code, name) VALUES (?, ?)', [code, name]);
         res.status(201).json({ id: result.insertId, message: 'Место добавлено' });
     } catch (error) {
         console.error('Ошибка добавления места:', error);
@@ -657,6 +597,82 @@ app.delete('/api/production-places/:id', authMiddleware, adminOnly, async (req, 
         res.json({ message: 'Место удалено' });
     } catch (error) {
         console.error('Ошибка удаления места:', error);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
+// ----- СОТРУДНИКИ -----
+app.get('/api/employees', authMiddleware, adminOnly, async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT id, last_name, first_name, middle_name, position, username, role FROM employees ORDER BY last_name, first_name');
+        res.json(rows);
+    } catch (error) {
+        console.error('Ошибка получения сотрудников:', error);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
+app.get('/api/employees/:id', authMiddleware, adminOnly, async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT id, last_name, first_name, middle_name, position, username, role FROM employees WHERE id = ?', [req.params.id]);
+        res.json(rows[0]);
+    } catch (error) {
+        console.error('Ошибка получения сотрудника:', error);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
+app.post('/api/employees', authMiddleware, adminOnly, async (req, res) => {
+    try {
+        const { last_name, first_name, middle_name, position, username, password, role } = req.body;
+        const [result] = await db.query(
+            `INSERT INTO employees 
+            (last_name, first_name, middle_name, position, username, password, role) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [last_name, first_name, middle_name, position, username, password, role || 'user']
+        );
+        res.status(201).json({ id: result.insertId, message: 'Сотрудник добавлен' });
+    } catch (error) {
+        console.error('Ошибка добавления сотрудника:', error);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
+app.put('/api/employees/:id', authMiddleware, adminOnly, async (req, res) => {
+    try {
+        const { last_name, first_name, middle_name, position, username, password, role } = req.body;
+        
+        let query;
+        let params;
+        
+        if (password) {
+            query = `UPDATE employees SET 
+                    last_name = ?, first_name = ?, middle_name = ?,
+                    position = ?, username = ?, password = ?, role = ?
+                    WHERE id = ?`;
+            params = [last_name, first_name, middle_name, position, username, password, role, req.params.id];
+        } else {
+            query = `UPDATE employees SET 
+                    last_name = ?, first_name = ?, middle_name = ?,
+                    position = ?, username = ?, role = ?
+                    WHERE id = ?`;
+            params = [last_name, first_name, middle_name, position, username, role, req.params.id];
+        }
+        
+        await db.query(query, params);
+        res.json({ message: 'Сотрудник обновлен' });
+    } catch (error) {
+        console.error('Ошибка обновления сотрудника:', error);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
+app.delete('/api/employees/:id', authMiddleware, adminOnly, async (req, res) => {
+    try {
+        await db.query('DELETE FROM employees WHERE id = ?', [req.params.id]);
+        res.json({ message: 'Сотрудник удален' });
+    } catch (error) {
+        console.error('Ошибка удаления сотрудника:', error);
         res.status(500).json({ error: 'Ошибка сервера' });
     }
 });
@@ -702,5 +718,6 @@ app.listen(PORT, () => {
     console.log(`\n👥 Тестовые учетные записи:`);
     console.log(`   📌 Администратор: admin / admin123`);
     console.log(`   📌 Пользователь: ivanov_a / 123`);
+    console.log(`   📌 Оператор: operator / 123`);
     console.log(`\n✅ Готово к работе!\n`);
 });
