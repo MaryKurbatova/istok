@@ -368,6 +368,16 @@ app.get('/api/boards/:id', auth, async (req, res) => {
     }
 });
 
+app.delete('/api/boards/:id', auth, adminOnly, async (req, res) => {
+    try {
+        await db.query('UPDATE devices SET device_id = NULL WHERE id IN (SELECT device_id FROM boards WHERE id = ?)', [req.params.id]);
+        await db.query('DELETE FROM boards WHERE id = ?', [req.params.id]);
+        res.json({ message: 'Плата удалена' });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.post('/api/boards', auth, canEdit, async (req, res) => {
     try {
         const { board_type_id, serial_number } = req.body;

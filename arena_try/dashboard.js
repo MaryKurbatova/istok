@@ -18,7 +18,11 @@ const S = {
     boardTypes: [],
     statistics: null,
     section: 'devices',
-    repairDevices: []
+    repairDevices: [],
+    repairBoards: [],
+    availableBoardsForVisual: [],
+    availableBoardsForDiag: [],
+    availableDevicesForPSI: []
 };
 
 // ============ Error Dialog ============
@@ -199,7 +203,7 @@ function showContent(section) {
         case 'stand-assembly': renderStandAssembly(); break;
         case 'stand-psi': renderStandPSI(); break;
         case 'stand-packaging': renderStandPackaging(); break;
-        case 'repair': loadRepairDevices(); break;
+        case 'repair': loadRepairItems(); break;
         default:
             document.getElementById('contentArea').innerHTML =
                 '<div class="empty-state"><p>Раздел в разработке</p></div>';
@@ -227,7 +231,8 @@ function stageLabel(s) {
         'assembled': 'Собрано',
         'psi_ok': 'ПСИ пройден',
         'psi_fail': 'ПСИ не пройден',
-        'packaged': 'Упаковано'
+        'packaged': 'Упаковано',
+        'repair': 'В ремонте'
     };
     return m[s] || s || '—';
 }
@@ -242,7 +247,8 @@ function stageBadge(s) {
         'assembled': 'badge-info',
         'psi_ok': 'badge-success',
         'psi_fail': 'badge-error',
-        'packaged': 'badge-success'
+        'packaged': 'badge-success',
+        'repair': 'badge-error'
     };
     return m[s] || 'badge-neutral';
 }
@@ -281,13 +287,6 @@ function renderPipeline(currentStage, isBoard) {
     }
     html += '</div>';
     return html;
-}
-
-function getFailedStage(device) {
-    if (device.current_stage === 'visual_fail') return 'visual';
-    if (device.current_stage === 'diagnostics_fail') return 'diagnostics';
-    if (device.current_stage === 'psi_fail') return 'psi';
-    return null;
 }
 
 // ============ DEVICES ============
@@ -578,45 +577,76 @@ async function deleteDevice(id) {
 }
 
 // ============ REPAIR ============
-async function loadRepairDevices() {
+async function loadRepairItems() {
     var content = document.getElementById('contentArea');
     content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка...</p></div>';
 
     try {
         var devices = await api('/api/devices');
+        var boards = await api('/api/boards');
+        
         S.repairDevices = (devices || []).filter(function(d) {
             var failedStages = ['visual_fail', 'diagnostics_fail', 'psi_fail'];
             return failedStages.includes(d.current_stage);
         });
+        
+        S.repairBoards = (boards || []).filter(function(b) {
+            var failedStages = ['visual_fail', 'diagnostics_fail'];
+            return failedStages.includes(b.current_stage);
+        });
 
-        if (!S.repairDevices.length) {
-            content.innerHTML = '<div class="empty-state"><p>Нет устройств в ремонте</p></div>';
+        if (S.repairDevices.length === 0 && S.repairBoards.length === 0) {
+            content.innerHTML = '<div class="empty-state"><p>Нет устройств или плат в ремонте</p></div>';
             return;
         }
 
         var html = '<div class="repair-list">';
-        for (var i = 0; i < S.repairDevices.length; i++) {
-            var d = S.repairDevices[i];
-            var failedStageName = stageLabel(d.current_stage);
-
-            html += '<div class="repair-item" data-device-id="' + d.id + '">';
-            html += '<div class="repair-header">';
-            html += '<span class="repair-sn">' + (d.product_serial_number || '—') + '</span>';
-            html += '<span class="repair-stage failed">' + failedStageName + '</span>';
-            html += '</div>';
-            html += '<div class="repair-details">Тип: ' + (d.device_type_name || '—') + '</div>';
-            var reason = '';
-            if (d.current_stage === 'visual_fail') reason = 'Не пройден визуальный осмотр';
-            else if (d.current_stage === 'diagnostics_fail') reason = 'Не пройдена диагностика';
-            else if (d.current_stage === 'psi_fail') reason = 'Не пройден ПСИ';
-            html += '<div class="repair-error">Причина: ' + reason + '</div>';
-            html += '<div class="repair-actions">';
-            html += '<button class="repair-btn repair-btn-resume" onclick="resumeRepair(' + d.id + ')">Возобновить проверку</button>';
-            if (S.user && S.user.role === 'admin') {
-                html += '<button class="repair-btn repair-btn-delete" onclick="deleteRepairDevice(' + d.id + ')">Удалить</button>';
+        
+        if (S.repairBoards.length > 0) {
+            html += '<h3 style="margin-bottom:16px;color:var(--primary)">Платы в ремонте</h3>';
+            for (var i = 0; i < S.repairBoards.length; i++) {
+                var b = S.repairBoards[i];
+                html += '<div class="repair-item" data-board-id="' + b.id + '">';
+                html += '<div class="repair-header">';
+                html += '<span class="repair-sn">' + (b.serial_number || '—') + '</span>';
+                html += '<span class="repair-stage failed">' + stageLabel(b.current_stage) + '</span>';
+                html += '</div>';
+                html += '<div class="repair-details">Тип платы: ' + (b.board_type_name || '—') + '</div>';
+                var reason = '';
+                if (b.current_stage === 'visual_fail') reason = 'Не пройден визуальный осмотр';
+                else if (b.current_stage === 'diagnostics_fail') reason = 'Не пройдена диагностика';
+                html += '<div class="repair-error">Причина: ' + reason + '</div>';
+                html += '<div class="repair-actions">';
+                html += '<button class="repair-btn repair-btn-resume" onclick="resumeRepairBoard(' + b.id + ', \'' + b.current_stage + '\')">Возобновить проверку</button>';
+                if (S.user && S.user.role === 'admin') {
+                    html += '<button class="repair-btn repair-btn-delete" onclick="deleteRepairBoard(' + b.id + ')">Удалить</button>';
+                }
+                html += '</div></div>';
             }
-            html += '</div></div>';
         }
+        
+        if (S.repairDevices.length > 0) {
+            html += '<h3 style="margin:24px 0 16px;color:var(--primary)">Устройства в ремонте</h3>';
+            for (var i = 0; i < S.repairDevices.length; i++) {
+                var d = S.repairDevices[i];
+                html += '<div class="repair-item" data-device-id="' + d.id + '">';
+                html += '<div class="repair-header">';
+                html += '<span class="repair-sn">' + (d.product_serial_number || '—') + '</span>';
+                html += '<span class="repair-stage failed">' + stageLabel(d.current_stage) + '</span>';
+                html += '</div>';
+                html += '<div class="repair-details">Тип: ' + (d.device_type_name || '—') + '</div>';
+                var reason = '';
+                if (d.current_stage === 'psi_fail') reason = 'Не пройден ПСИ';
+                html += '<div class="repair-error">Причина: ' + reason + '</div>';
+                html += '<div class="repair-actions">';
+                html += '<button class="repair-btn repair-btn-resume" onclick="resumeRepairDevice(' + d.id + ')">Возобновить проверку</button>';
+                if (S.user && S.user.role === 'admin') {
+                    html += '<button class="repair-btn repair-btn-delete" onclick="deleteRepairDevice(' + d.id + ')">Удалить</button>';
+                }
+                html += '</div></div>';
+            }
+        }
+        
         html += '</div>';
         content.innerHTML = html;
     } catch (e) {
@@ -624,19 +654,13 @@ async function loadRepairDevices() {
     }
 }
 
-async function resumeRepair(deviceId) {
+async function resumeRepairBoard(boardId, currentStage) {
     try {
-        var device = await api('/api/devices/' + deviceId);
-        if (!device) return;
-
-        var failedStage = device.current_stage;
         var targetStand = null;
-
-        if (failedStage === 'visual_fail') targetStand = 'stand-visual';
-        else if (failedStage === 'diagnostics_fail') targetStand = 'stand-diag';
-        else if (failedStage === 'psi_fail') targetStand = 'stand-psi';
+        if (currentStage === 'visual_fail') targetStand = 'stand-visual';
+        else if (currentStage === 'diagnostics_fail') targetStand = 'stand-diag';
         else {
-            showError('Это устройство не требует ремонта');
+            showError('Эта плата не требует ремонта');
             return;
         }
 
@@ -644,14 +668,46 @@ async function resumeRepair(deviceId) {
         showContent(targetStand);
 
         setTimeout(function() {
-            if (targetStand === 'stand-visual' || targetStand === 'stand-diag') {
-                var formInput = document.querySelector('.stand-form input[name="serial_number"]');
-                if (formInput) formInput.value = device.product_serial_number;
-            } else if (targetStand === 'stand-psi') {
-                var psiInput = document.querySelector('.stand-form input[name="device_serial_number"]');
-                if (psiInput) psiInput.value = device.product_serial_number;
+            var formInput = document.querySelector('.stand-form input[name="serial_number"]');
+            if (formInput) {
+                var board = S.repairBoards.find(function(b) { return b.id === boardId; });
+                if (board) formInput.value = board.serial_number;
             }
         }, 100);
+    } catch (e) {
+        showError(e.message);
+    }
+}
+
+async function resumeRepairDevice(deviceId) {
+    try {
+        var device = await api('/api/devices/' + deviceId);
+        if (!device) return;
+
+        if (device.current_stage !== 'psi_fail') {
+            showError('Это устройство не требует ремонта');
+            return;
+        }
+
+        toast('Переход к стенду ПСИ', 'info');
+        showContent('stand-psi');
+
+        setTimeout(function() {
+            var psiInput = document.querySelector('.stand-form input[name="device_serial_number"]');
+            if (psiInput) psiInput.value = device.product_serial_number;
+        }, 100);
+    } catch (e) {
+        showError(e.message);
+    }
+}
+
+async function deleteRepairBoard(id) {
+    if (!confirm('Удалить плату из ремонта?')) return;
+    try {
+        await api('/api/boards/' + id, { method: 'DELETE' });
+        toast('Удалено', 'success');
+        loadRepairItems();
+        loadBoards();
     } catch (e) {
         showError(e.message);
     }
@@ -662,7 +718,8 @@ async function deleteRepairDevice(id) {
     try {
         await api('/api/devices/' + id, { method: 'DELETE' });
         toast('Удалено', 'success');
-        loadRepairDevices();
+        loadRepairItems();
+        loadDevices();
     } catch (e) {
         showError(e.message);
     }
@@ -814,24 +871,84 @@ async function showBoardDetails(id) {
     }
 }
 
-// ============ STANDS ============
+// ============ STANDS with autocomplete ============
+
+async function loadAvailableBoardsForVisual() {
+    try {
+        var boards = await api('/api/boards');
+        S.availableBoardsForVisual = boards.filter(function(b) {
+            return b.current_stage === 'new';
+        });
+        return S.availableBoardsForVisual;
+    } catch (e) {
+        return [];
+    }
+}
+
+async function loadAvailableBoardsForDiag() {
+    try {
+        var boards = await api('/api/boards');
+        S.availableBoardsForDiag = boards.filter(function(b) {
+            return b.current_stage === 'visual_ok' && b.visual_inspection_passed === 1;
+        });
+        return S.availableBoardsForDiag;
+    } catch (e) {
+        return [];
+    }
+}
+
+async function loadAvailableDevicesForPSI() {
+    try {
+        var devices = await api('/api/devices');
+        S.availableDevicesForPSI = devices.filter(function(d) {
+            return d.current_stage === 'assembled' && d.assembly_passed === 1;
+        });
+        return S.availableDevicesForPSI;
+    } catch (e) {
+        return [];
+    }
+}
+
+function createDatalist(id, options, valueField, labelField) {
+    var datalist = document.getElementById(id);
+    if (!datalist) {
+        datalist = document.createElement('datalist');
+        datalist.id = id;
+        document.body.appendChild(datalist);
+    }
+    datalist.innerHTML = '';
+    for (var i = 0; i < options.length; i++) {
+        var opt = document.createElement('option');
+        opt.value = options[i][valueField];
+        if (labelField && options[i][labelField]) {
+            opt.textContent = options[i][labelField];
+        }
+        datalist.appendChild(opt);
+    }
+    return datalist;
+}
 
 function renderStandVisual() {
-    document.getElementById('contentArea').innerHTML =
-        '<div class="stand-form"><div class="section-card">' +
-        '<h3>Стенд визуального осмотра</h3>' +
-        '<p style="color:var(--text-secondary);margin-bottom:20px">Считайте QR-код платы. Только новые платы.</p>' +
-        '<form onsubmit="submitVisualInspection(event)">' +
-        '<div class="form-grid">' +
-        '<div class="form-group full-width"><label class="form-label">Серийный номер платы *</label><input class="form-input" name="serial_number" required placeholder="Отсканируйте" autofocus></div>' +
-        '<div class="form-group full-width"><label class="form-label">Комментарий</label><textarea class="form-textarea" name="comment" placeholder="Результаты..."></textarea></div>' +
-        '</div>' +
-        '<div class="form-actions" style="justify-content:center;gap:16px">' +
-        '<button type="submit" name="resultBtn" value="ok" class="btn btn-primary" style="background:var(--success)">ОК</button>' +
-        '<button type="submit" name="resultBtn" value="fail" class="btn btn-danger">Брак</button>' +
-        '</div></form>' +
-        '<div id="standResult"></div>' +
-        '</div></div>';
+    loadAvailableBoardsForVisual().then(function(boards) {
+        createDatalist('visual-boards-list', boards, 'serial_number', 'serial_number');
+        
+        document.getElementById('contentArea').innerHTML =
+            '<div class="stand-form"><div class="section-card">' +
+            '<h3>Стенд визуального осмотра</h3>' +
+            '<p style="color:var(--text-secondary);margin-bottom:20px">Выберите или отсканируйте плату. Только новые платы.</p>' +
+            '<form onsubmit="submitVisualInspection(event)">' +
+            '<div class="form-grid">' +
+            '<div class="form-group full-width"><label class="form-label">Серийный номер платы *</label>' +
+            '<input class="form-input" name="serial_number" list="visual-boards-list" required placeholder="Начните вводить или отсканируйте" autofocus autocomplete="off"></div>' +
+            '<div class="form-group full-width"><label class="form-label">Комментарий</label><textarea class="form-textarea" name="comment" placeholder="Результаты..."></textarea></div>' +
+            '</div>' +
+            '<div class="form-actions" style="justify-content:center;gap:16px">' +
+            '<button type="submit" name="resultBtn" value="ok" class="btn btn-primary" style="background:var(--success)">ОК</button>' +
+            '<button type="submit" name="resultBtn" value="fail" class="btn btn-danger">Брак</button>' +
+            '</div></form>' +
+            '<div id="standResult"></div>' +
+            '</div></div>';
+    });
 }
 
 async function submitVisualInspection(event) {
@@ -853,37 +970,45 @@ async function submitVisualInspection(event) {
         toast(r.message, 'success');
         if (!isOk) {
             toast('Плата отправлена в ремонт', 'warning');
+            loadRepairItems();
         }
+        loadAvailableBoardsForVisual();
+        renderStandVisual();
     } catch (e) {
         document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>' + e.message + '</h4></div>';
     }
 }
 
 function renderStandDiag() {
-    document.getElementById('contentArea').innerHTML =
-        '<div class="stand-form"><div class="section-card">' +
-        '<h3>Стенд диагностики</h3>' +
-        '<p style="color:var(--text-secondary);margin-bottom:20px">Плата должна пройти визуальный осмотр.</p>' +
-        '<form onsubmit="submitDiagnostics(event)">' +
-        '<div class="form-grid">' +
-        '<div class="form-group full-width"><label class="form-label">Серийный номер *</label><input class="form-input" name="serial_number" required autofocus></div>' +
-        '<div class="form-group"><label class="form-label">IP-адрес</label><input class="form-input" name="ip_address" placeholder="192.168.1.xxx"></div>' +
-        '<div class="form-group"><label class="form-label">Стенд</label><input class="form-input" name="stand_name" placeholder="Стенд Д-1"></div>' +
-        '</div>' +
-        '<div class="form-group full-width" style="margin-top:16px"><label class="form-label">Проверки</label>' +
-        '<div class="checkbox-group">' +
-        '<label class="checkbox-item"><input type="checkbox" name="ports_ok" checked> Порты</label>' +
-        '<label class="checkbox-item"><input type="checkbox" name="os_installed" checked> ОС</label>' +
-        '<label class="checkbox-item"><input type="checkbox" name="disks_ok" checked> Диски</label>' +
-        '<label class="checkbox-item"><input type="checkbox" name="memory_ok" checked> Память</label>' +
-        '</div></div>' +
-        '<div class="form-group full-width" style="margin-top:16px"><label class="form-label">Комментарий</label><textarea class="form-textarea" name="comment"></textarea></div>' +
-        '<div class="form-actions" style="justify-content:center;gap:16px">' +
-        '<button type="submit" name="resultBtn" value="ok" class="btn btn-primary" style="background:var(--success)">Пройдена</button>' +
-        '<button type="submit" name="resultBtn" value="fail" class="btn btn-danger">Не пройдена</button>' +
-        '</div></form>' +
-        '<div id="standResult"></div>' +
-        '</div></div>';
+    loadAvailableBoardsForDiag().then(function(boards) {
+        createDatalist('diag-boards-list', boards, 'serial_number', 'serial_number');
+        
+        document.getElementById('contentArea').innerHTML =
+            '<div class="stand-form"><div class="section-card">' +
+            '<h3>Стенд диагностики</h3>' +
+            '<p style="color:var(--text-secondary);margin-bottom:20px">Плата должна пройти визуальный осмотр.</p>' +
+            '<form onsubmit="submitDiagnostics(event)">' +
+            '<div class="form-grid">' +
+            '<div class="form-group full-width"><label class="form-label">Серийный номер *</label>' +
+            '<input class="form-input" name="serial_number" list="diag-boards-list" required placeholder="Начните вводить или отсканируйте" autofocus autocomplete="off"></div>' +
+            '<div class="form-group"><label class="form-label">IP-адрес</label><input class="form-input" name="ip_address" placeholder="192.168.1.xxx"></div>' +
+            '<div class="form-group"><label class="form-label">Стенд</label><input class="form-input" name="stand_name" placeholder="Стенд Д-1"></div>' +
+            '</div>' +
+            '<div class="form-group full-width" style="margin-top:16px"><label class="form-label">Проверки</label>' +
+            '<div class="checkbox-group">' +
+            '<label class="checkbox-item"><input type="checkbox" name="ports_ok" checked> Порты</label>' +
+            '<label class="checkbox-item"><input type="checkbox" name="os_installed" checked> ОС</label>' +
+            '<label class="checkbox-item"><input type="checkbox" name="disks_ok" checked> Диски</label>' +
+            '<label class="checkbox-item"><input type="checkbox" name="memory_ok" checked> Память</label>' +
+            '</div></div>' +
+            '<div class="form-group full-width" style="margin-top:16px"><label class="form-label">Комментарий</label><textarea class="form-textarea" name="comment"></textarea></div>' +
+            '<div class="form-actions" style="justify-content:center;gap:16px">' +
+            '<button type="submit" name="resultBtn" value="ok" class="btn btn-primary" style="background:var(--success)">Пройдена</button>' +
+            '<button type="submit" name="resultBtn" value="fail" class="btn btn-danger">Не пройдена</button>' +
+            '</div></form>' +
+            '<div id="standResult"></div>' +
+            '</div></div>';
+    });
 }
 
 async function submitDiagnostics(event) {
@@ -911,7 +1036,10 @@ async function submitDiagnostics(event) {
         toast(r.message, 'success');
         if (!isOk) {
             toast('Плата отправлена в ремонт', 'warning');
+            loadRepairItems();
         }
+        loadAvailableBoardsForDiag();
+        renderStandDiag();
     } catch (e) {
         document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>' + e.message + '</h4></div>';
     }
@@ -965,30 +1093,35 @@ async function submitAssembly(event) {
 }
 
 function renderStandPSI() {
-    document.getElementById('contentArea').innerHTML =
-        '<div class="stand-form"><div class="section-card">' +
-        '<h3>Стенд ПСИ</h3>' +
-        '<p style="color:var(--text-secondary);margin-bottom:20px">Устройство должно пройти сборку.</p>' +
-        '<form onsubmit="submitPSI(event)">' +
-        '<div class="form-grid">' +
-        '<div class="form-group full-width"><label class="form-label">Серийный номер изделия *</label><input class="form-input" name="device_serial_number" required autofocus></div>' +
-        '<div class="form-group"><label class="form-label">Протокол *</label><input class="form-input" name="protocol_number" required placeholder="PSI-2024-XXX"></div>' +
-        '<div class="form-group"><label class="form-label">Прошивка *</label><input class="form-input" name="firmware_version" required placeholder="router_6.4"></div>' +
-        '</div>' +
-        '<div class="form-group full-width" style="margin-top:16px"><label class="form-label">Проверки</label>' +
-        '<div class="checkbox-group">' +
-        '<label class="checkbox-item"><input type="checkbox" name="ports_ok" checked> Порты</label>' +
-        '<label class="checkbox-item"><input type="checkbox" name="os_installed" checked> ОС</label>' +
-        '<label class="checkbox-item"><input type="checkbox" name="disks_ok" checked> Диски</label>' +
-        '<label class="checkbox-item"><input type="checkbox" name="memory_ok" checked> Память</label>' +
-        '</div></div>' +
-        '<div class="form-group full-width" style="margin-top:16px"><label class="form-label">Комментарий</label><textarea class="form-textarea" name="comment"></textarea></div>' +
-        '<div class="form-actions" style="justify-content:center;gap:16px">' +
-        '<button type="submit" name="resultBtn" value="ok" class="btn btn-primary" style="background:var(--success)">ПСИ пройден</button>' +
-        '<button type="submit" name="resultBtn" value="fail" class="btn btn-danger">Не пройден</button>' +
-        '</div></form>' +
-        '<div id="standResult"></div>' +
-        '</div></div>';
+    loadAvailableDevicesForPSI().then(function(devices) {
+        createDatalist('psi-devices-list', devices, 'product_serial_number', 'product_serial_number');
+        
+        document.getElementById('contentArea').innerHTML =
+            '<div class="stand-form"><div class="section-card">' +
+            '<h3>Стенд ПСИ</h3>' +
+            '<p style="color:var(--text-secondary);margin-bottom:20px">Устройство должно пройти сборку.</p>' +
+            '<form onsubmit="submitPSI(event)">' +
+            '<div class="form-grid">' +
+            '<div class="form-group full-width"><label class="form-label">Серийный номер изделия *</label>' +
+            '<input class="form-input" name="device_serial_number" list="psi-devices-list" required placeholder="Начните вводить" autofocus autocomplete="off"></div>' +
+            '<div class="form-group"><label class="form-label">Протокол *</label><input class="form-input" name="protocol_number" required placeholder="PSI-2024-XXX"></div>' +
+            '<div class="form-group"><label class="form-label">Прошивка *</label><input class="form-input" name="firmware_version" required placeholder="router_6.4"></div>' +
+            '</div>' +
+            '<div class="form-group full-width" style="margin-top:16px"><label class="form-label">Проверки</label>' +
+            '<div class="checkbox-group">' +
+            '<label class="checkbox-item"><input type="checkbox" name="ports_ok" checked> Порты</label>' +
+            '<label class="checkbox-item"><input type="checkbox" name="os_installed" checked> ОС</label>' +
+            '<label class="checkbox-item"><input type="checkbox" name="disks_ok" checked> Диски</label>' +
+            '<label class="checkbox-item"><input type="checkbox" name="memory_ok" checked> Память</label>' +
+            '</div></div>' +
+            '<div class="form-group full-width" style="margin-top:16px"><label class="form-label">Комментарий</label><textarea class="form-textarea" name="comment"></textarea></div>' +
+            '<div class="form-actions" style="justify-content:center;gap:16px">' +
+            '<button type="submit" name="resultBtn" value="ok" class="btn btn-primary" style="background:var(--success)">ПСИ пройден</button>' +
+            '<button type="submit" name="resultBtn" value="fail" class="btn btn-danger">Не пройден</button>' +
+            '</div></form>' +
+            '<div id="standResult"></div>' +
+            '</div></div>';
+    });
 }
 
 async function submitPSI(event) {
@@ -1016,7 +1149,10 @@ async function submitPSI(event) {
         toast(r.message, 'success');
         if (!isOk) {
             toast('Устройство отправлено в ремонт', 'warning');
+            loadRepairItems();
         }
+        loadAvailableDevicesForPSI();
+        renderStandPSI();
     } catch (e) {
         document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>' + e.message + '</h4></div>';
     }
