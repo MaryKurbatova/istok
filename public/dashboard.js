@@ -221,6 +221,61 @@ function addFixedTableStyles() {
             height: 100%;
             object-fit: contain;
         }
+        
+        .stat-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .employee-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--primary-light);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+        
+        .role-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .role-badge.admin { background: #e8f5e9; color: #2e7d32; }
+        .role-badge.user { background: #e3f2fd; color: #1976d2; }
+        .role-badge.operator { background: #fff3e0; color: #ef6c00; }
+        
+        .employee-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .employee-table th {
+            text-align: left;
+            padding: 1rem;
+            background: var(--bg-soft);
+            color: var(--primary);
+            font-weight: 600;
+            border-bottom: 2px solid var(--border-light);
+        }
+        .employee-table td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-soft);
+            color: var(--text-primary);
+        }
+        .employee-table tr:hover {
+            background: var(--bg-soft);
+        }
+        .employee-table tr:last-child td {
+            border-bottom: none;
+        }
     `;
     document.head.appendChild(style);
 }
@@ -378,6 +433,7 @@ async function loadReferenceData() {
 function getDeviceImage(deviceType) {
     if (!deviceType) return '/images/default.png';
     const type = deviceType.toLowerCase();
+    
     if (type.includes('isn41508t3-m-ac') || type.includes('isbn41508t3-m-ac')) return '/images/ISBN41508T3-M-AC.png';
     if (type.includes('isn41508t3-m') || type.includes('isbn41508t3-m')) return '/images/ISBN41508T3-M.png';
     if (type.includes('isn41508t3') || type.includes('isbn41508t3')) return '/images/ISBN41508T3.png';
@@ -386,6 +442,7 @@ function getDeviceImage(deviceType) {
     if (type.includes('isn42124t5c4')) return '/images/ISBN41508T3.png';
     if (type.includes('isn42124t5p5')) return '/images/ISBN41508T3-M.png';
     if (type.includes('isn42124x5')) return '/images/ISBN41508T4.png';
+    
     return '/images/default.png';
 }
 
@@ -427,7 +484,7 @@ function renderDevicesTable() {
         return;
     }
     
-    let html = '<div class="table-container"><table class="data-table"><thead> <tr>';
+    let html = '<div class="table-container"><table class="data-table"><thead>   <tr>';
     html += '<th style="width: 80px;">Изображение</th>';
     html += '<th style="width: 150px;">Серийный номер</th>';
     html += '<th style="width: 120px;">Тип</th>';
@@ -436,7 +493,7 @@ function renderDevicesTable() {
     html += '<th style="width: 120px;">Дата производства</th>';
     html += '<th style="width: 80px;">Статус</th>';
     html += '<th style="width: 120px;">Действия</th>';
-    html += '</thead><tbody>';
+    html += '</tr></thead><tbody>';
     
     AppState.filteredDevices.forEach(device => {
         const statusClass = device.diag ? 'success' : 'danger';
@@ -449,13 +506,13 @@ function renderDevicesTable() {
                      alt="${escapeHtml(device.type || 'Устройство')}" 
                      class="device-image" 
                      onerror="this.src='/images/default.png'">
-             </td>
-             <td><strong>${escapeHtml(device.product_serial_number || '—')}</strong></td>
-             <td>${escapeHtml(device.device_type_name || '—')}</td>
-             <td>${escapeHtml(device.type || '—')}</td>
-             <td>${escapeHtml(device.version_os || '—')}</td>
-             <td>${escapeHtml(device.manufactures_date || '—')}</td>
-             <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+              </td>
+              <td><strong>${escapeHtml(device.product_serial_number || '—')}</strong></td>
+              <td>${escapeHtml(device.device_type_name || '—')}</td>
+              <td>${escapeHtml(device.type || '—')}</td>
+              <td>${escapeHtml(device.version_os || '—')}</td>
+              <td>${escapeHtml(device.manufactures_date || '—')}</td>
+              <td><span class="status-badge ${statusClass}">${statusText}</span></td>
             <td class="table-actions">
                 <button class="edit-btn" onclick="showDeviceDetails(${device.id})">👁️</button>`;
         
@@ -466,7 +523,7 @@ function renderDevicesTable() {
             html += `<button class="delete-btn" onclick="deleteDevice(${device.id})">✕</button>`;
         }
         html += `</td>
-             </tr>`;
+            </tr>`;
     });
     
     html += '</tbody></table></div>';
@@ -550,7 +607,7 @@ async function showDeviceDetails(id) {
     document.body.appendChild(modal);
 }
 
-// ===== ДОБАВЛЕНИЕ УСТРОЙСТВА С ФОТО =====
+// ===== ДОБАВЛЕНИЕ УСТРОЙСТВА =====
 async function addDevice() {
     await loadReferenceData();
     const today = new Date().toISOString().split('T')[0];
@@ -567,7 +624,7 @@ async function addDevice() {
                 <div class="form-group">
                     <label>Изображение устройства</label>
                     <div style="display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap;">
-                        <div id="image-preview" class="image-preview" style="width: 120px; height: 120px; background: var(--bg-soft); border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--border-light); overflow: hidden;">
+                        <div id="image-preview" class="image-preview" style="width: 120px; height: 120px;">
                             <span style="color: var(--text-tertiary); font-size: 12px;">Нет фото</span>
                         </div>
                         <div style="flex: 1;">
@@ -625,19 +682,16 @@ async function addDevice() {
     `;
     document.body.appendChild(modal);
     
-    // Добавляем обработчик выбора файла
     const fileInput = document.getElementById('device-image');
     fileInput.addEventListener('change', async function(e) {
         const file = e.target.files[0];
         if (!file) return;
         
-        // Проверяем размер файла
         if (file.size > 5 * 1024 * 1024) {
             showNotification('Файл слишком большой! Максимум 5 МБ.', 'error');
             return;
         }
         
-        // Показываем превью
         const reader = new FileReader();
         reader.onload = function(e) {
             const preview = document.getElementById('image-preview');
@@ -645,7 +699,6 @@ async function addDevice() {
         };
         reader.readAsDataURL(file);
         
-        // Загружаем файл на сервер
         const formData = new FormData();
         formData.append('image', file);
         
@@ -666,7 +719,6 @@ async function addDevice() {
             } else {
                 const error = await response.json();
                 showNotification(error.error || 'Ошибка загрузки изображения', 'error');
-                // Очищаем превью
                 const preview = document.getElementById('image-preview');
                 preview.innerHTML = '<span style="color: var(--text-tertiary); font-size: 12px;">Нет фото</span>';
             }
@@ -699,7 +751,6 @@ async function saveDevice() {
         image_path: document.getElementById('modal-image-path')?.value || null
     };
     
-    // Валидация
     if (!deviceData.product_serial_number) {
         showNotification('Введите серийный номер', 'warning');
         return;
@@ -710,7 +761,6 @@ async function saveDevice() {
         return;
     }
     
-    // Проверка уникальности серийного номера
     const existingDevice = AppState.devices.find(d => d.product_serial_number === deviceData.product_serial_number);
     if (existingDevice) {
         showNotification('Устройство с таким серийным номером уже существует!', 'error');
@@ -735,35 +785,6 @@ async function saveDevice() {
         console.error('Ошибка:', error);
         showNotification('❌ Ошибка сервера', 'error');
     }
-}
-
-function getDeviceImage(deviceType) {
-    if (!deviceType) return '/images/default.png';
-    const type = deviceType.toLowerCase();
-    
-    // ISN415 серия
-    if (type.includes('isn41508t3-m-ac') || type.includes('isbn41508t3-m-ac')) return '/images/ISBN41508T3-M-AC.png';
-    if (type.includes('isn41508t3-m') || type.includes('isbn41508t3-m')) return '/images/ISBN41508T3-M.png';
-    if (type.includes('isn41508t3') || type.includes('isbn41508t3')) return '/images/ISBN41508T3.png';
-    if (type.includes('isn41508t4') || type.includes('isbn41508t4')) return '/images/ISBN41508T4.png';
-    
-    // ISN505 серия
-    if (type.includes('isn50502t5')) return '/images/ISN50502T5.png';
-    
-    // Коммутаторы
-    if (type.includes('isn42124t5c4')) return '/images/ISBN41508T3.png';
-    if (type.includes('isn42124t5p5')) return '/images/ISBN41508T3-M.png';
-    if (type.includes('isn42124x5')) return '/images/ISBN41508T4.png';
-    
-    return '/images/default.png';
-}
-
-function clearImagePreview() {
-    document.getElementById('modal-image-path').value = '';
-    const preview = document.getElementById('image-preview');
-    preview.innerHTML = '<span style="color: var(--text-tertiary);">Нет фото</span>';
-    const fileInput = document.getElementById('device-image');
-    if (fileInput) fileInput.value = '';
 }
 
 async function editDevice(id) {
@@ -868,48 +889,6 @@ async function editDevice(id) {
     });
 }
 
-async function saveDevice() {
-    const deviceData = {
-        device_type_id: document.getElementById('modal-device-type')?.value || null,
-        product_serial_number: document.getElementById('modal-serial-number')?.value,
-        type: document.getElementById('modal-type')?.value,
-        version_os: document.getElementById('modal-version-os')?.value,
-        place_of_production_id: document.getElementById('modal-production-place')?.value || null,
-        manufactures_date: document.getElementById('modal-manufactures-date')?.value,
-        diag: document.getElementById('modal-diag')?.checked,
-        image_path: document.getElementById('modal-image-path')?.value || null
-    };
-    
-    if (!deviceData.product_serial_number) {
-        showNotification('Введите серийный номер', 'warning');
-        return;
-    }
-    
-    if (!deviceData.device_type_id) {
-        showNotification('Выберите тип устройства', 'warning');
-        return;
-    }
-    
-    try {
-        const response = await apiRequest('/api/devices', {
-            method: 'POST',
-            body: JSON.stringify(deviceData)
-        });
-        
-        if (response.ok) {
-            showNotification('✅ Устройство добавлено', 'success');
-            closeModal(document.querySelector('.modal-close'));
-            await loadDevices();
-        } else {
-            const error = await response.json();
-            showNotification(error.error || 'Ошибка при добавлении', 'error');
-        }
-    } catch (error) {
-        console.error('Ошибка:', error);
-        showNotification('❌ Ошибка сервера', 'error');
-    }
-}
-
 async function updateDevice(id) {
     const deviceData = {
         device_type_id: document.getElementById('modal-device-type')?.value || null,
@@ -963,7 +942,7 @@ async function deleteDevice(id) {
     }
 }
 
-// ===== ТИПЫ ИЗДЕЛИЙ (только RS и SA) =====
+// ===== ТИПЫ ИЗДЕЛИЙ =====
 async function loadProductTypes() {
     console.log('📋 loadProductTypes вызвана');
     const container = document.getElementById('product-types-list');
@@ -973,7 +952,6 @@ async function loadProductTypes() {
         const response = await apiRequest('/api/device-types');
         if (response.ok) {
             const types = await response.json();
-            // Фильтруем только RS и SA
             const filteredTypes = types.filter(type => type.code === 'RS' || type.code === 'SA');
             renderProductTypes(filteredTypes);
         } else {
@@ -1011,19 +989,12 @@ function renderProductTypes(types) {
     `;
     
     types.forEach(type => {
-        // Определяем класс для строки в зависимости от типа
-        let rowClass = '';
         let icon = '';
-        if (type.code === 'RS') {
-            rowClass = 'router-type';
-            icon = '🔄';
-        } else if (type.code === 'SA') {
-            rowClass = 'switch-type';
-            icon = '🔌';
-        }
+        if (type.code === 'RS') icon = '🔄';
+        else if (type.code === 'SA') icon = '🔌';
         
         html += `
-            <tr class="${rowClass}">
+            <tr>
                 <td style="display: flex; align-items: center; gap: 10px;">
                     <span style="font-size: 1.2rem;">${icon}</span>
                     <strong>${escapeHtml(type.name)}</strong>
@@ -1049,11 +1020,9 @@ function renderProductTypes(types) {
         </div>
     `;
     
-    
     container.innerHTML = html;
 }
 
-// Добавление нового типа (только для администратора, но с проверкой на RS/SA)
 async function addProductType() {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
@@ -1092,7 +1061,6 @@ async function saveProductType() {
         return;
     }
     
-    // Проверяем, что код соответствует существующим типам
     if (code !== 'RS' && code !== 'SA') {
         if (!confirm(`Вы добавляете тип с кодом "${code}". В системе используются только RS и SA. Продолжить?`)) {
             return;
@@ -1120,10 +1088,8 @@ async function saveProductType() {
 }
 
 async function deleteProductType(id) {
-    // Получаем информацию о типе
     const type = AppState.deviceTypes.find(t => t.id === id);
     
-    // Запрещаем удаление основных типов
     if (type && (type.code === 'RS' || type.code === 'SA')) {
         showNotification('❌ Нельзя удалить базовые типы устройств (RS и SA)', 'error');
         return;
@@ -1195,8 +1161,6 @@ function filterComponentsByType(deviceType) {
             tab.classList.add('active');
         } else if (deviceType === 'RS' && tab.textContent.toLowerCase().includes('сервисные')) {
             tab.classList.add('active');
-        } else if (deviceType === 'RB' && tab.textContent.toLowerCase().includes('граничные')) {
-            tab.classList.add('active');
         } else if (deviceType === 'SA' && tab.textContent.toLowerCase().includes('коммутаторы')) {
             tab.classList.add('active');
         }
@@ -1223,7 +1187,6 @@ function renderComponentsTable(components, filterType = 'all') {
     if (components.length === 0) {
         let message = 'Нет комплектующих';
         if (filterType === 'RS') message = 'Нет комплектующих для сервисных маршрутизаторов';
-        else if (filterType === 'RB') message = 'Нет комплектующих для граничных маршрутизаторов';
         else if (filterType === 'SA') message = 'Нет комплектующих для коммутаторов доступа';
         
         container.innerHTML = `<div class="empty-state">${message}</div>`;
@@ -1262,7 +1225,6 @@ function renderComponentsTable(components, filterType = 'all') {
         if (deviceInfo) {
             switch(deviceInfo.type) {
                 case 'RS': deviceTypeDisplay = 'Сервисный маршрутизатор'; break;
-                case 'RB': deviceTypeDisplay = 'Граничный маршрутизатор'; break;
                 case 'SA': deviceTypeDisplay = 'Коммутатор доступа'; break;
                 default: deviceTypeDisplay = deviceInfo.name;
             }
@@ -1284,7 +1246,7 @@ function renderComponentsTable(components, filterType = 'all') {
                 </td>
             `;
         } else {
-            html += `<td>—</td>`;
+            html += `<td style="color: var(--text-tertiary);">—</td>`;
         }
         
         html += `</tr>`;
@@ -1401,13 +1363,13 @@ function renderProductionPlacesTable(places) {
         return;
     }
     
-    let html = '<div class="table-container"><table class="data-table"><thead><th>Название</th><th>Код</th><th>Действия</th></thead><tbody>';
+    let html = '<div class="table-container"><table class="data-table"><thead><tr><th>Название</th><th>Код</th><th>Действия</th></tr></thead><tbody>';
     places.forEach(place => {
         html += `<tr><td><strong>${escapeHtml(place.name)}</strong></td><td>${escapeHtml(place.code)}</td>`;
         if (AppState.currentUser?.role === 'admin') {
             html += `<td class="table-actions"><button class="delete-btn" onclick="deleteProductionPlace(${place.id})">✕</button></td>`;
         } else {
-            html += `<td>—</td>`;
+            html += `<td style="color: var(--text-tertiary);">—</td>`;
         }
         html += `</tr>`;
     });
@@ -1478,7 +1440,9 @@ async function loadEmployees() {
         const response = await apiRequest('/api/employees');
         if (response.ok) {
             AppState.employees = await response.json();
-            renderEmployeesTable();
+            console.log('✅ Сотрудники загружены:', AppState.employees.length);
+            updateEmployeeStats();
+            filterEmployees();
         } else {
             console.error('❌ Ошибка загрузки сотрудников:', response.status);
             showNotification('Ошибка загрузки сотрудников', 'error');
@@ -1491,30 +1455,123 @@ async function loadEmployees() {
     }
 }
 
-function renderEmployeesTable() {
+function updateEmployeeStats() {
+    if (!AppState.employees.length) return;
+    
+    const total = AppState.employees.length;
+    const admins = AppState.employees.filter(e => e.role === 'admin').length;
+    const operators = AppState.employees.filter(e => e.role === 'operator').length;
+    const users = AppState.employees.filter(e => e.role === 'user').length;
+    
+    const totalEl = document.getElementById('total-employees');
+    const adminEl = document.getElementById('admin-count');
+    const operatorEl = document.getElementById('operator-count');
+    const userEl = document.getElementById('user-count');
+    
+    if (totalEl) totalEl.textContent = total;
+    if (adminEl) adminEl.textContent = admins;
+    if (operatorEl) operatorEl.textContent = operators;
+    if (userEl) userEl.textContent = users;
+}
+
+function filterEmployees() {
+    const searchTerm = document.getElementById('employeeSearch')?.value.toLowerCase() || '';
+    const roleFilter = document.getElementById('roleFilter')?.value || '';
+    
+    let filtered = [...AppState.employees];
+    
+    if (searchTerm) {
+        filtered = filtered.filter(emp => 
+            `${emp.last_name} ${emp.first_name} ${emp.middle_name || ''}`.toLowerCase().includes(searchTerm) ||
+            emp.position?.toLowerCase().includes(searchTerm) ||
+            emp.username?.toLowerCase().includes(searchTerm)
+        );
+    }
+    
+    if (roleFilter) {
+        filtered = filtered.filter(emp => emp.role === roleFilter);
+    }
+    
+    const countInfo = document.getElementById('employee-count-info');
+    if (countInfo) {
+        countInfo.textContent = `Найдено: ${filtered.length} из ${AppState.employees.length}`;
+    }
+    
+    renderEmployeesTableFiltered(filtered);
+}
+
+function renderEmployeesTableFiltered(employees) {
     const container = document.getElementById('employees-list');
     if (!container) return;
-    if (AppState.employees.length === 0) {
-        container.innerHTML = '<div class="empty-state">Нет сотрудников</div>';
+    
+    if (employees.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state" style="padding: 3rem; text-align: center;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">👥</div>
+                <h3 style="color: var(--text-secondary);">Нет сотрудников</h3>
+                <p style="color: var(--text-tertiary);">Соответствующих критериям поиска не найдено</p>
+            </div>
+        `;
         return;
     }
     
-    let html = '<div class="table-container"><table class="data-table"><thead><th>ФИО</th><th>Должность</th><th>Логин</th><th>Роль</th><th>Действия</th></thead><tbody>';
-    AppState.employees.forEach(emp => {
-        const roleClass = emp.role === 'admin' ? 'success' : emp.role === 'operator' ? 'warning' : 'info';
+    let html = `
+        <div class="employee-card" style="overflow: hidden; background: var(--bg-white); border-radius: var(--radius-lg); border: 1px solid var(--border-light);">
+            <table class="employee-table">
+                <thead>
+                    <tr>
+                        <th style="width: 60px;"></th>
+                        <th>Сотрудник</th>
+                        <th>Должность</th>
+                        <th>Логин</th>
+                        <th>Роль</th>
+                        <th style="width: 100px;">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    employees.forEach(emp => {
+        const fullName = `${emp.last_name} ${emp.first_name}${emp.middle_name ? ' ' + emp.middle_name : ''}`;
+        const initials = `${emp.last_name?.charAt(0)}${emp.first_name?.charAt(0)}`;
+        const roleClass = emp.role === 'admin' ? 'admin' : emp.role === 'operator' ? 'operator' : 'user';
         const roleText = emp.role === 'admin' ? 'Администратор' : emp.role === 'operator' ? 'Оператор' : 'Пользователь';
-        html += `<tr><td><strong>${escapeHtml(emp.last_name)} ${escapeHtml(emp.first_name)} ${escapeHtml(emp.middle_name || '')}</strong></td>
-            <td>${escapeHtml(emp.position)}</td>
-            <td>${escapeHtml(emp.username || '—')}</td>
-            <td><span class="status-badge ${roleClass}">${roleText}</span></td>`;
+        
+        html += `
+            <tr>
+                <td>
+                    <div class="employee-avatar">
+                        ${initials}
+                    </div>
+                </td>
+                <td>
+                    <div style="font-weight: 600;">${escapeHtml(fullName)}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-tertiary);">ID: ${emp.id}</div>
+                </td>
+                <td>${escapeHtml(emp.position || '—')}</td>
+                <td><code style="background: var(--bg-soft); padding: 0.2rem 0.5rem; border-radius: 4px;">${escapeHtml(emp.username)}</code></td>
+                <td><span class="role-badge ${roleClass}">${roleText}</span></td>
+        `;
+        
         if (AppState.currentUser?.role === 'admin') {
-            html += `<td class="table-actions"><button class="delete-btn" onclick="deleteEmployee(${emp.id})">✕</button></td>`;
+            html += `
+                <td class="table-actions">
+                    <button class="edit-btn" onclick="editEmployee(${emp.id})" style="padding: 0.4rem 0.8rem;" title="Редактировать">✎</button>
+                    <button class="delete-btn" onclick="deleteEmployee(${emp.id})" style="padding: 0.4rem 0.8rem;" title="Удалить">✕</button>
+                 </td>
+            `;
         } else {
-            html += `<td>—</td>`;
+            html += `<td style="color: var(--text-tertiary);">—</td>`;
         }
         html += `</tr>`;
     });
-    html += '</tbody></table></div>';
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
     container.innerHTML = html;
 }
 
@@ -1565,6 +1622,80 @@ async function saveEmployee() {
         } else {
             const error = await response.json();
             showNotification(error.error || 'Ошибка при добавлении', 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка:', error);
+        showNotification('❌ Ошибка сервера', 'error');
+    }
+}
+
+async function editEmployee(id) {
+    const employee = AppState.employees.find(e => e.id === id);
+    if (!employee) return;
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3>Редактировать сотрудника</h3>
+                <button class="modal-close" onclick="closeModal(this)">×</button>
+            </div>
+            <div class="modal-content">
+                <div class="grid-2">
+                    <div class="form-group"><label>Фамилия *</label><input type="text" id="modal-last-name" value="${escapeHtml(employee.last_name)}" required></div>
+                    <div class="form-group"><label>Имя *</label><input type="text" id="modal-first-name" value="${escapeHtml(employee.first_name)}" required></div>
+                </div>
+                <div class="form-group"><label>Отчество</label><input type="text" id="modal-middle-name" value="${escapeHtml(employee.middle_name || '')}"></div>
+                <div class="form-group"><label>Должность *</label><input type="text" id="modal-position" value="${escapeHtml(employee.position)}" required></div>
+                <div class="form-group"><label>Логин *</label><input type="text" id="modal-username" value="${escapeHtml(employee.username)}" required></div>
+                <div class="form-group"><label>Новый пароль (оставьте пустым, чтобы не менять)</label><input type="password" id="modal-password" placeholder="••••••"></div>
+                <div class="form-group"><label>Роль</label>
+                    <select id="modal-role">
+                        <option value="user" ${employee.role === 'user' ? 'selected' : ''}>Пользователь</option>
+                        <option value="admin" ${employee.role === 'admin' ? 'selected' : ''}>Администратор</option>
+                        <option value="operator" ${employee.role === 'operator' ? 'selected' : ''}>Оператор</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="closeModal(this)">Отмена</button>
+                <button class="btn-save" onclick="updateEmployee(${id})">Сохранить</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function updateEmployee(id) {
+    const empData = {
+        last_name: document.getElementById('modal-last-name')?.value,
+        first_name: document.getElementById('modal-first-name')?.value,
+        middle_name: document.getElementById('modal-middle-name')?.value,
+        position: document.getElementById('modal-position')?.value,
+        username: document.getElementById('modal-username')?.value,
+        password: document.getElementById('modal-password')?.value,
+        role: document.getElementById('modal-role')?.value
+    };
+    
+    if (!empData.last_name || !empData.first_name || !empData.position || !empData.username) {
+        showNotification('Заполните все обязательные поля', 'warning');
+        return;
+    }
+    
+    try {
+        const response = await apiRequest(`/api/employees/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(empData)
+        });
+        
+        if (response.ok) {
+            showNotification('✅ Сотрудник обновлен', 'success');
+            closeModal(document.querySelector('.modal-close'));
+            await loadEmployees();
+        } else {
+            const error = await response.json();
+            showNotification(error.error || 'Ошибка при обновлении', 'error');
         }
     } catch (error) {
         console.error('Ошибка:', error);
@@ -1716,7 +1847,6 @@ async function showContent(contentType) {
                     </div>
                 </div>
             `;
-            break;
             break;
         case 'components':
             content = `
@@ -1874,14 +2004,61 @@ async function showTopContent(contentType) {
         case 'employees':
             content = `
                 <div class="employees-page">
-                    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
-                        <h1>СОТРУДНИКИ</h1>
-                        ${AppState.currentUser?.role === 'admin' ? '<button class="add-button" onclick="addEmployee()">+ Добавить сотрудника</button>' : ''}
+                    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <div>
+                            <h1 style="font-size: 1.8rem; font-weight: 600; color: var(--primary);">СОТРУДНИКИ</h1>
+                            <p style="color: var(--text-secondary); margin-top: 0.5rem;">Управление персоналом предприятия</p>
+                        </div>
+                        ${AppState.currentUser?.role === 'admin' ? `
+                        <button class="add-button" onclick="addEmployee()" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.2rem;">+</span> Добавить сотрудника
+                        </button>
+                        ` : ''}
                     </div>
-                    <div class="page-content"><div id="employees-list"></div></div>
+                    
+                    <div id="employees-stats" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                        <div class="stat-card" style="background: var(--bg-white); border-radius: var(--radius-lg); padding: 1rem; border: 1px solid var(--border-light); text-align: center;">
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--primary);" id="total-employees">0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-tertiary);">Всего сотрудников</div>
+                        </div>
+                        <div class="stat-card" style="background: var(--bg-white); border-radius: var(--radius-lg); padding: 1rem; border: 1px solid var(--border-light); text-align: center;">
+                            <div style="font-size: 2rem; font-weight: 700; color: #8B9A7A;" id="admin-count">0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-tertiary);">Администраторы</div>
+                        </div>
+                        <div class="stat-card" style="background: var(--bg-white); border-radius: var(--radius-lg); padding: 1rem; border: 1px solid var(--border-light); text-align: center;">
+                            <div style="font-size: 2rem; font-weight: 700; color: #C49A8C;" id="operator-count">0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-tertiary);">Операторы</div>
+                        </div>
+                        <div class="stat-card" style="background: var(--bg-white); border-radius: var(--radius-lg); padding: 1rem; border: 1px solid var(--border-light); text-align: center;">
+                            <div style="font-size: 2rem; font-weight: 700; color: #7A9AB7;" id="user-count">0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-tertiary);">Пользователи</div>
+                        </div>
+                    </div>
+                    
+                    <div class="search-panel" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; gap: 1rem; flex: 1;">
+                            <div class="search-input" style="flex: 1;">
+                                <input type="text" id="employeeSearch" placeholder="Поиск по ФИО, должности или логину..." onkeyup="filterEmployees()">
+                                <button onclick="filterEmployees()">🔍 Найти</button>
+                            </div>
+                            <select id="roleFilter" class="filter-select" onchange="filterEmployees()" style="width: 150px;">
+                                <option value="">Все роли</option>
+                                <option value="admin">Администраторы</option>
+                                <option value="user">Пользователи</option>
+                                <option value="operator">Операторы</option>
+                            </select>
+                        </div>
+                        <div style="color: var(--text-tertiary); font-size: 0.85rem;" id="employee-count-info"></div>
+                    </div>
+                    
+                    <div class="page-content">
+                        <div id="employees-list"></div>
+                    </div>
                 </div>
             `;
-            setTimeout(() => loadEmployees(), 100);
+            setTimeout(() => {
+                loadEmployees();
+            }, 100);
             break;
         case 'about':
             content = `
@@ -1974,5 +2151,9 @@ window.deleteProductionPlace = deleteProductionPlace;
 window.loadEmployees = loadEmployees;
 window.addEmployee = addEmployee;
 window.deleteEmployee = deleteEmployee;
+window.editEmployee = editEmployee;
+window.updateEmployee = updateEmployee;
+window.filterEmployees = filterEmployees;
+window.updateEmployeeStats = updateEmployeeStats;
 window.loadStatistics = loadStatistics;
 window.clearImagePreview = clearImagePreview;
