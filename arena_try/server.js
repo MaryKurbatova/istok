@@ -15,7 +15,7 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Static files - ONLY specific folders, NOT root
+// Static files
 app.use('/images', express.static(path.join(__dirname, 'images')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -52,17 +52,41 @@ function auth(req, res, next) {
     req.user = sessions.get(token);
     next();
 }
+
 function adminOnly(req, res, next) {
-    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Недостаточно прав' });
-    next();
-}
-function canEdit(req, res, next) {
-    if (req.user.role === 'operator') return res.status(403).json({ error: 'Недостаточно прав' });
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Недостаточно прав. Требуется роль администратора.' });
     next();
 }
 
+function canEdit(req, res, next) {
+    if (req.user.role === 'operator') return res.status(403).json({ error: 'Недостаточно прав. Оператор не может редактировать.' });
+    next();
+}
+
+function canDelete(req, res, next) {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Недостаточно прав. Только администратор может удалять.' });
+    next();
+}
+
+
+app.post('/loginyara', async (req, res) => {
+    const { username, password } = req.body;
+    try {
+        const [rows] = await db.query('SELECT * FROM employees WHERE username = ? AND password = ?', [username, password]);
+        if (rows.length > 0) {
+            const user = rows[0];
+            res.send({id: user.id, username: user.username, password: user.password, role:user.role});
+        } else {
+            res.send('401');
+        }
+    } catch (error) {
+        console.error('Ошибка БД:', error);
+        res.send('500');
+    }
+});
+
 // ==========================================
-// HTML PAGES - explicit routes only
+// HTML PAGES
 // ==========================================
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'autoriation.html'));
@@ -72,7 +96,6 @@ app.get('/dashboard', (req, res) => {
     res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
 
-// CSS and JS files - explicit with correct content types
 app.get('/auto.css', (req, res) => {
     res.type('text/css').sendFile(path.join(__dirname, 'auto.css'));
 });
@@ -124,6 +147,19 @@ app.post('/api/logout', auth, (req, res) => {
 // ==========================================
 app.get('/api/devices', auth, async (req, res) => {
     try {
+        // Для оператора - только базовая информация
+        if (req.user.role === 'operator') {
+            const [rows] = await db.query(`
+                SELECT d.id, d.product_serial_number, d.type, d.current_stage, d.manufactures_date,
+                    dt.name as device_type_name, dt.code as device_type_code
+                FROM devices d
+                LEFT JOIN device_type dt ON d.device_type_id = dt.id
+                ORDER BY d.id DESC
+            `);
+            return res.json(rows);
+        }
+        
+        // Для user и admin - полная информация
         const sql = `
             SELECT d.*,
                 dt.name as device_type_name, dt.code as device_type_code,
@@ -172,6 +208,19 @@ app.get('/api/devices', auth, async (req, res) => {
 
 app.get('/api/devices/:id', auth, async (req, res) => {
     try {
+        // Для оператора - только базовая информация
+        if (req.user.role === 'operator') {
+            const [rows] = await db.query(`
+                SELECT d.id, d.product_serial_number, d.type, d.current_stage, d.manufactures_date,
+                    dt.name as device_type_name, dt.code as device_type_code
+                FROM devices d
+                LEFT JOIN device_type dt ON d.device_type_id = dt.id
+                WHERE d.id = ?
+            `, [req.params.id]);
+            if (!rows.length) return res.status(404).json({ error: 'Не найдено' });
+            return res.json(rows[0]);
+        }
+        
         const [rows] = await db.query(`
             SELECT d.*,
                 dt.name as device_type_name, dt.code as device_type_code,
@@ -227,27 +276,6 @@ app.get('/api/devices/:id', auth, async (req, res) => {
         );
         dev.history = history;
 
-        const [psiRecs] = await db.query(
-            `SELECT p.*, CONCAT(e.last_name, ' ', e.first_name) as emp_name
-             FROM psi_records p LEFT JOIN employees e ON p.employee_id = e.id
-             WHERE p.device_id = ?`, [dev.id]
-        );
-        dev.psi_records = psiRecs;
-
-        const [asmRecs] = await db.query(
-            `SELECT a.*, CONCAT(e.last_name, ' ', e.first_name) as emp_name
-             FROM assembly_records a LEFT JOIN employees e ON a.employee_id = e.id
-             WHERE a.device_id = ?`, [dev.id]
-        );
-        dev.assembly_records = asmRecs;
-
-        const [pkgRecs] = await db.query(
-            `SELECT p.*, CONCAT(e.last_name, ' ', e.first_name) as emp_name
-             FROM packaging_records p LEFT JOIN employees e ON p.employee_id = e.id
-             WHERE p.device_id = ?`, [dev.id]
-        );
-        dev.packaging_records = pkgRecs;
-
         res.json(dev);
     } catch (e) {
         console.error('GET /api/devices/:id error:', e);
@@ -297,7 +325,7 @@ app.put('/api/devices/:id', auth, canEdit, async (req, res) => {
     }
 });
 
-app.delete('/api/devices/:id', auth, adminOnly, async (req, res) => {
+app.delete('/api/devices/:id', auth, canDelete, async (req, res) => {
     try {
         await db.query('UPDATE boards SET device_id = NULL WHERE device_id = ?', [req.params.id]);
         await db.query('DELETE FROM devices WHERE id = ?', [req.params.id]);
@@ -312,6 +340,17 @@ app.delete('/api/devices/:id', auth, adminOnly, async (req, res) => {
 // ==========================================
 app.get('/api/boards', auth, async (req, res) => {
     try {
+        // Для оператора - только базовая информация
+        if (req.user.role === 'operator') {
+            const [rows] = await db.query(`
+                SELECT b.id, b.serial_number, b.current_stage, bt.name as board_type_name, bt.code as board_type_code
+                FROM boards b
+                LEFT JOIN board_type bt ON b.board_type_id = bt.id
+                ORDER BY b.id DESC
+            `);
+            return res.json(rows);
+        }
+        
         const [rows] = await db.query(
             `SELECT b.*, bt.name as board_type_name, bt.code as board_type_code,
                 d.product_serial_number as device_serial,
@@ -335,6 +374,18 @@ app.get('/api/boards', auth, async (req, res) => {
 
 app.get('/api/boards/:id', auth, async (req, res) => {
     try {
+        // Для оператора - только базовая информация
+        if (req.user.role === 'operator') {
+            const [rows] = await db.query(`
+                SELECT b.id, b.serial_number, b.current_stage, bt.name as board_type_name, bt.code as board_type_code
+                FROM boards b
+                LEFT JOIN board_type bt ON b.board_type_id = bt.id
+                WHERE b.id = ?
+            `, [req.params.id]);
+            if (!rows.length) return res.status(404).json({ error: 'Не найдено' });
+            return res.json(rows[0]);
+        }
+        
         const [rows] = await db.query(
             `SELECT b.*, bt.name as board_type_name, bt.code as board_type_code,
                 d.product_serial_number as device_serial
@@ -368,9 +419,8 @@ app.get('/api/boards/:id', auth, async (req, res) => {
     }
 });
 
-app.delete('/api/boards/:id', auth, adminOnly, async (req, res) => {
+app.delete('/api/boards/:id', auth, canDelete, async (req, res) => {
     try {
-        await db.query('UPDATE devices SET device_id = NULL WHERE id IN (SELECT device_id FROM boards WHERE id = ?)', [req.params.id]);
         await db.query('DELETE FROM boards WHERE id = ?', [req.params.id]);
         res.json({ message: 'Плата удалена' });
     } catch (e) {
@@ -401,11 +451,10 @@ app.get('/api/board-types', auth, async (req, res) => {
 });
 
 // ==========================================
-// STANDS API
+// STANDS API (доступны всем, включая оператора)
 // ==========================================
 
-// Visual Inspection
-app.post('/api/stands/visual-inspection', auth, canEdit, async (req, res) => {
+app.post('/api/stands/visual-inspection', auth, async (req, res) => {
     try {
         const { serial_number, result, comment } = req.body;
         const [boards] = await db.query('SELECT * FROM boards WHERE serial_number = ?', [serial_number]);
@@ -444,8 +493,7 @@ app.post('/api/stands/visual-inspection', auth, canEdit, async (req, res) => {
     }
 });
 
-// Diagnostics
-app.post('/api/stands/diagnostics', auth, canEdit, async (req, res) => {
+app.post('/api/stands/diagnostics', auth, async (req, res) => {
     try {
         const { serial_number, result, comment, ip_address, stand_name, ports_ok, os_installed, disks_ok, memory_ok } = req.body;
         const [boards] = await db.query('SELECT * FROM boards WHERE serial_number = ?', [serial_number]);
@@ -490,8 +538,7 @@ app.post('/api/stands/diagnostics', auth, canEdit, async (req, res) => {
     }
 });
 
-// Assembly
-app.post('/api/stands/assembly', auth, canEdit, async (req, res) => {
+app.post('/api/stands/assembly', auth, async (req, res) => {
     try {
         const { board_serial_numbers, case_serial_number, device_serial_number, device_type_id } = req.body;
 
@@ -554,8 +601,7 @@ app.post('/api/stands/assembly', auth, canEdit, async (req, res) => {
     }
 });
 
-// PSI
-app.post('/api/stands/psi', auth, canEdit, async (req, res) => {
+app.post('/api/stands/psi', auth, async (req, res) => {
     try {
         const { device_serial_number, result, comment, protocol_number, firmware_version, ports_ok, os_installed, disks_ok, memory_ok } = req.body;
         const [devices] = await db.query('SELECT * FROM devices WHERE product_serial_number = ?', [device_serial_number]);
@@ -599,8 +645,7 @@ app.post('/api/stands/psi', auth, canEdit, async (req, res) => {
     }
 });
 
-// Packaging
-app.post('/api/stands/packaging', auth, canEdit, async (req, res) => {
+app.post('/api/stands/packaging', auth, async (req, res) => {
     try {
         const { device_serial_number, comment } = req.body;
         const [devices] = await db.query('SELECT * FROM devices WHERE product_serial_number = ?', [device_serial_number]);
@@ -650,7 +695,7 @@ app.post('/api/stands/packaging', auth, canEdit, async (req, res) => {
 });
 
 // ==========================================
-// REFERENCES API
+// REFERENCES API (только для user и admin)
 // ==========================================
 app.get('/api/device-types', auth, async (req, res) => {
     try { const [r] = await db.query('SELECT * FROM device_type ORDER BY name'); res.json(r); }
@@ -708,13 +753,13 @@ app.get('/api/iso', auth, async (req, res) => {
 });
 
 // ==========================================
-// EMPLOYEES API
+// EMPLOYEES API (только для admin)
 // ==========================================
-app.get('/api/employees', auth, async (req, res) => {
+app.get('/api/employees', auth, adminOnly, async (req, res) => {
     try { const [r] = await db.query('SELECT id, last_name, first_name, middle_name, position, username, role, created_at FROM employees ORDER BY last_name'); res.json(r); }
     catch (e) { res.status(500).json({ error: 'Ошибка' }); }
 });
-app.get('/api/employees/:id', auth, async (req, res) => {
+app.get('/api/employees/:id', auth, adminOnly, async (req, res) => {
     try { const [r] = await db.query('SELECT id, last_name, first_name, middle_name, position, username, role FROM employees WHERE id = ?', [req.params.id]); if (!r.length) return res.status(404).json({ error: 'Не найден' }); res.json(r[0]); }
     catch (e) { res.status(500).json({ error: 'Ошибка' }); }
 });

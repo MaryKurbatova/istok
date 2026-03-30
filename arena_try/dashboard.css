@@ -736,3 +736,37 @@ html[data-theme="light"] {
     --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
     --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
 }
+
+
+/* ========== Role Badges ========== */
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.role-badge-admin {
+    background: rgba(248,113,113,0.15);
+    color: #F87171;
+}
+.role-badge-user {
+    background: rgba(96,165,250,0.15);
+    color: #60A5FA;
+}
+.role-badge-operator {
+    background: rgba(251,191,36,0.15);
+    color: #FBBF24;
+}
+
+/* Операторский режим - визуальное предупреждение */
+.operator-mode .top-bar {
+    border-top: 2px solid #FBBF24;
+}
+.operator-mode .top-bar-title h2::after {
+    content: " (режим оператора)";
+    font-size: 12px;
+    color: #FBBF24;
+    font-weight: normal;
+}

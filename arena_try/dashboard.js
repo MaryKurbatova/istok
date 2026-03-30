@@ -1518,3 +1518,42 @@ function renderProfile() {
         '<div class="detail-row"><span class="detail-label">ID</span><span class="detail-value">' + u.id + '</span></div>' +
         '</div></div>';
 }
+
+
+// ============ USER ============
+async function loadUser() {
+    try {
+        S.user = await api('/api/current-user');
+        if (!S.user) return;
+
+        const initials = (S.user.first_name?.[0] || '') + (S.user.last_name?.[0] || '');
+        document.getElementById('userAvatar').textContent = initials.toUpperCase();
+        document.getElementById('sidebarUserName').textContent = S.user.last_name + ' ' + (S.user.first_name?.[0] || '') + '.';
+
+        const roleMap = { admin: 'Администратор', user: 'Пользователь', operator: 'Оператор' };
+        const roleColors = { admin: '#F87171', user: '#60A5FA', operator: '#FBBF24' };
+        
+        const userRoleEl = document.getElementById('sidebarUserRole');
+        userRoleEl.textContent = roleMap[S.user.role] || S.user.role;
+        userRoleEl.style.color = roleColors[S.user.role] || '#9B8F82';
+        
+        // Разные права доступа в зависимости от роли
+        if (S.user.role === 'admin') {
+            document.getElementById('employeesBtn').style.display = '';
+            // Админ видит всё
+        } else if (S.user.role === 'user') {
+            document.getElementById('employeesBtn').style.display = 'none';
+            // Пользователь видит кнопки редактирования
+        } else { // operator
+            document.getElementById('employeesBtn').style.display = 'none';
+            // Оператору показываем предупреждение
+            toast('Вы вошли как оператор. Доступно только прохождение стендов.', 'info');
+        }
+
+        showContent('devices');
+    } catch (e) {
+        console.error('loadUser failed:', e);
+        document.getElementById('contentArea').innerHTML =
+            '<div class="empty-state"><p>Ошибка загрузки пользователя: ' + e.message + '</p></div>';
+    }
+}
