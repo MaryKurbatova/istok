@@ -1,9 +1,10 @@
-// ======== СОСТОЯНИЕ ПРИЛОЖЕНИЯ ========
-const AppState = {
-    currentUser: null,
-    currentTheme: localStorage.getItem('theme') || 'light',
+// ============ STATE ============
+const S = {
+    user: null,
+    token: null,
     devices: [],
     filteredDevices: [],
+    boards: [],
     employees: [],
     deviceTypes: [],
     productionPlaces: [],
@@ -14,1444 +15,1258 @@ const AppState = {
     bmcList: [],
     ubootList: [],
     isoList: [],
+    boardTypes: [],
     statistics: null,
-    currentSection: 'devices'
+    section: 'devices'
 };
 
-// ======== УПРАВЛЕНИЕ МАСШТАБОМ ========
-let currentZoom = 100;
-
-function addZoomControls() {
-    const controls = document.createElement('div');
-    controls.className = 'zoom-controls';
-    controls.innerHTML = `
-        <button class="zoom-btn" onclick="zoomOut()">−</button>
-        <span class="zoom-value" id="zoomValue">100%</span>
-        <button class="zoom-btn" onclick="zoomIn()">+</button>
-        <button class="zoom-btn" onclick="resetZoom()" style="font-size:14px;">↺</button>
-    `;
-    document.body.appendChild(controls);
-}
-
-function zoomIn() {
-    if (currentZoom < 150) {
-        currentZoom += 10;
-        applyZoom();
-    }
-}
-
-function zoomOut() {
-    if (currentZoom > 70) {
-        currentZoom -= 10;
-        applyZoom();
-    }
-}
-
-function resetZoom() {
-    currentZoom = 100;
-    applyZoom();
-}
-
-function applyZoom() {
-    const appLayout = document.querySelector('.app-layout');
-    if (appLayout) {
-        appLayout.style.transform = `scale(${currentZoom / 100})`;
-        appLayout.style.transformOrigin = 'top left';
-        appLayout.style.width = `${10000 / currentZoom}%`;
-        const zoomValue = document.getElementById('zoomValue');
-        if (zoomValue) zoomValue.textContent = `${currentZoom}%`;
-        
-        // Сохраняем настройку масштаба
-        localStorage.setItem('pageZoom', currentZoom);
-    }
-}
-
-// Загружаем сохраненный масштаб
-function loadZoomSetting() {
-    const savedZoom = localStorage.getItem('pageZoom');
-    if (savedZoom) {
-        currentZoom = parseInt(savedZoom);
-        applyZoom();
-    }
-}
-
-// ======== ИНИЦИАЛИЗАЦИЯ ========
-document.addEventListener('DOMContentLoaded', async () => {
-    applyTheme();
-    addZoomControls();
-    loadZoomSetting();
-    
-    const token = getToken();
-    if (!token) {
-        window.location.href = '/';
+// ============ INIT ============
+document.addEventListener('DOMContentLoaded', () => {
+    S.token = new URLSearchParams(location.search).get('token') || localStorage.getItem('token');
+    if (!S.token) {
+        location.href = '/';
         return;
     }
-    try {
-        AppState.currentUser = await apiRequest('/api/current-user');
-        setupUI();
-        await loadAllData();
-        showContent('devices');
-    } catch (err) {
-        console.error('Init error:', err);
-        window.location.href = '/';
-    }
+    document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
+    loadUser();
 });
 
-// ======== УТИЛИТЫ ========
-function getToken() {
-    return new URLSearchParams(window.location.search).get('token') || localStorage.getItem('token');
-}
-
-async function apiRequest(url, options = {}) {
-    const token = getToken();
-    const config = {
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-            ...options.headers
-        },
-        ...options
+// ============ API - with proper error handling ============
+async function api(url, opt = {}) {
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + S.token
     };
-    if (config.body && typeof config.body === 'object' && !(config.body instanceof FormData)) {
-        config.body = JSON.stringify(config.body);
+
+    // Remove Content-Type for FormData
+    if (opt.body instanceof FormData) {
+        delete headers['Content-Type'];
     }
-    if (config.body instanceof FormData) {
-        delete config.headers['Content-Type'];
+
+    try {
+        const response = await fetch(url, {
+            ...opt,
+            headers: { ...headers, ...opt.headers }
+        });
+
+        // Check if response is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('Non-JSON response from', url, ':', text.substring(0, 200));
+            throw new Error('Сервер вернул не JSON. URL: ' + url);
+        }
+
+        const data = await response.json();
+
+        if (response.status === 401) {
+            localStorage.removeItem('token');
+            location.href = '/';
+            return null;
+        }
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Ошибка сервера');
+        }
+
+        return data;
+    } catch (e) {
+        console.error('API Error:', url, e);
+        toast(e.message, 'error');
+        throw e;
     }
-    const resp = await fetch(url, config);
-    if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ error: 'Ошибка сервера' }));
-        throw new Error(err.error || 'Ошибка запроса');
-    }
-    return resp.json();
 }
 
-function notify(message, type = 'info') {
-    const div = document.createElement('div');
-    div.className = `notification ${type}`;
-    div.textContent = message;
-    document.body.appendChild(div);
-    setTimeout(() => div.remove(), 3000);
+// ============ USER ============
+async function loadUser() {
+    try {
+        S.user = await api('/api/current-user');
+        if (!S.user) return;
+
+        const initials = (S.user.first_name?.[0] || '') + (S.user.last_name?.[0] || '');
+        document.getElementById('userAvatar').textContent = initials.toUpperCase();
+        document.getElementById('sidebarUserName').textContent = S.user.last_name + ' ' + (S.user.first_name?.[0] || '') + '.';
+
+        const roleMap = { admin: 'Администратор', user: 'Пользователь', operator: 'Оператор' };
+        document.getElementById('sidebarUserRole').textContent = roleMap[S.user.role] || S.user.role;
+
+        if (S.user.role === 'admin') {
+            document.getElementById('employeesBtn').style.display = '';
+        }
+
+        showContent('devices');
+    } catch (e) {
+        console.error('loadUser failed:', e);
+        // Don't redirect, show error
+        document.getElementById('contentArea').innerHTML =
+            '<div class="empty-state"><p>Ошибка загрузки пользователя: ' + e.message + '</p></div>';
+    }
 }
 
-function escapeHtml(str) {
-    if (!str) return '';
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-}
-
-// ======== ТЕМА ========
-function applyTheme() {
-    document.documentElement.setAttribute('data-theme', AppState.currentTheme);
-    const btn = document.querySelector('.theme-toggle');
-    if (btn) btn.textContent = AppState.currentTheme === 'dark' ? '☀' : '🌙';
+function logout() {
+    api('/api/logout', { method: 'POST' }).catch(() => { });
+    localStorage.removeItem('token');
+    location.href = '/';
 }
 
 function toggleTheme() {
-    AppState.currentTheme = AppState.currentTheme === 'light' ? 'dark' : 'light';
-    localStorage.setItem('theme', AppState.currentTheme);
-    applyTheme();
-}
-
-// ======== UI SETUP ========
-function setupUI() {
-    const user = AppState.currentUser;
-    if (user.role === 'admin') {
-        const employeesLink = document.getElementById('employeesLink');
-        if (employeesLink) employeesLink.style.display = '';
-    }
+    const c = document.documentElement.getAttribute('data-theme');
+    const n = c === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', n);
+    localStorage.setItem('theme', n);
 }
 
 function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar) {
-        sidebar.classList.toggle('open');
-        sidebar.classList.toggle('collapsed');
-    }
+    document.getElementById('sidebar').classList.toggle('open');
 }
 
-// ======== ЗАГРУЗКА ДАННЫХ ========
-async function loadAllData() {
-    try {
-        const [types, places, months, years, stages, locations, bmc, uboot, iso] = await Promise.all([
-            apiRequest('/api/device-types'),
-            apiRequest('/api/production-places'),
-            apiRequest('/api/production-months'),
-            apiRequest('/api/production-years'),
-            apiRequest('/api/production-stages'),
-            apiRequest('/api/locations'),
-            apiRequest('/api/bmc'),
-            apiRequest('/api/uboot'),
-            apiRequest('/api/iso')
-        ]);
-        AppState.deviceTypes = types;
-        AppState.productionPlaces = places;
-        AppState.productionMonths = months;
-        AppState.productionYears = years;
-        AppState.productionStages = stages;
-        AppState.locations = locations;
-        AppState.bmcList = bmc;
-        AppState.ubootList = uboot;
-        AppState.isoList = iso;
-    } catch (err) {
-        console.error('Load data error:', err);
-    }
+// ============ TOAST ============
+function toast(msg, type = 'info') {
+    const c = document.getElementById('toastContainer');
+    const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+    const t = document.createElement('div');
+    t.className = 'toast toast-' + type;
+    t.innerHTML = '<span class="toast-icon">' + (icons[type] || 'ℹ') + '</span><span>' + msg + '</span>';
+    c.appendChild(t);
+    setTimeout(() => {
+        t.classList.add('toast-out');
+        setTimeout(() => t.remove(), 300);
+    }, 4000);
 }
 
-// ======== НАВИГАЦИЯ ========
-function showContent(section, event) {
-    if (event) event.preventDefault();
-    AppState.currentSection = section;
+// ============ MODAL ============
+function openModal(title, html) {
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalBody').innerHTML = html;
+    document.getElementById('modalOverlay').classList.add('active');
+}
 
-    // Обновляем активный пункт навигации
+function closeModal(e) {
+    if (e && e.target !== e.currentTarget) return;
+    document.getElementById('modalOverlay').classList.remove('active');
+}
+
+// ============ NAVIGATION ============
+function showContent(section) {
+    S.section = section;
+
+    // Update active nav
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-    if (event) event.currentTarget.classList.add('active');
+    const navItem = document.querySelector('[data-section="' + section + '"]');
+    if (navItem) navItem.classList.add('active');
 
+    // Close mobile sidebar
+    document.getElementById('sidebar').classList.remove('open');
+
+    // Update title
     const titles = {
         'devices': 'Устройства',
-        'device-types': 'Типы изделий',
-        'components': 'Комплектующие',
-        'production-places': 'Места производства',
-        'serial-structure': 'Структура серийного номера',
-        'statistics': 'Статистика'
+        'boards': 'Платы',
+        'stand-visual': 'Стенд визуального осмотра',
+        'stand-diag': 'Стенд диагностики',
+        'stand-assembly': 'Стенд сборки',
+        'stand-psi': 'Стенд ПСИ',
+        'stand-packaging': 'Стенд упаковки',
+        'types': 'Типы изделий',
+        'places': 'Места производства',
+        'serial-structure': 'Структура серийного №',
+        'statistics': 'Статистика',
+        'profile': 'Профиль',
+        'employees': 'Сотрудники'
     };
-    const pageTitle = document.getElementById('pageTitle');
-    if (pageTitle) pageTitle.textContent = titles[section] || section;
+    document.getElementById('pageTitle').textContent = titles[section] || section;
 
+    // Route to function
     switch (section) {
         case 'devices': loadDevices(); break;
-        case 'device-types': renderDeviceTypes(); break;
-        case 'components': loadComponents(); break;
-        case 'production-places': renderProductionPlaces(); break;
+        case 'boards': loadBoards(); break;
+        case 'types': loadDeviceTypes(); break;
+        case 'places': loadProductionPlaces(); break;
         case 'serial-structure': renderSerialStructure(); break;
         case 'statistics': loadStatistics(); break;
-    }
-
-    // Скрываем сайдбар на мобильных
-    if (window.innerWidth <= 768) {
-        const sidebar = document.getElementById('sidebar');
-        if (sidebar) sidebar.classList.remove('open');
-    }
-}
-
-function showTopContent(section, event) {
-    if (event) event.preventDefault();
-    const titles = {
-        'profile': 'Профиль',
-        'employees': 'Сотрудники',
-        'about': 'О программе',
-        'settings': 'Настройки'
-    };
-    const pageTitle = document.getElementById('pageTitle');
-    if (pageTitle) pageTitle.textContent = titles[section] || section;
-
-    // Убираем active с боковых
-    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-
-    switch (section) {
         case 'profile': renderProfile(); break;
         case 'employees': loadEmployees(); break;
-        case 'about': renderAbout(); break;
-        case 'settings': renderSettings(); break;
+        case 'stand-visual': renderStandVisual(); break;
+        case 'stand-diag': renderStandDiag(); break;
+        case 'stand-assembly': renderStandAssembly(); break;
+        case 'stand-psi': renderStandPSI(); break;
+        case 'stand-packaging': renderStandPackaging(); break;
+        default:
+            document.getElementById('contentArea').innerHTML =
+                '<div class="empty-state"><p>Раздел в разработке</p></div>';
     }
 }
 
-// ======== УСТРОЙСТВА ========
-async function loadDevices() {
-    const content = document.getElementById('contentArea');
-    if (content) {
-        content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка устройств...</p></div>';
+// ============ HELPERS ============
+function getDeviceImage(type) {
+    if (!type) return '/images/ISN41508T3.png';
+    var t = type.toLowerCase();
+    if (t.indexOf('isn41508t3-m-ac') !== -1) return '/images/ISN41508T3-M-AC.png';
+    if (t.indexOf('isn41508t3-m') !== -1) return '/images/ISN41508T3-M.png';
+    if (t.indexOf('isn41508t4') !== -1) return '/images/ISN41508T4.png';
+    if (t.indexOf('isn41508t3') !== -1) return '/images/ISN41508T3.png';
+    return '/images/ISN41508T3.png';
+}
+
+function stageLabel(s) {
+    var m = {
+        'new': 'Новое', 'visual_ok': 'Осмотр ✓', 'visual_fail': 'Осмотр ✕',
+        'diagnostics_ok': 'Диагностика ✓', 'diagnostics_fail': 'Диагностика ✕',
+        'assembled': 'Собрано', 'psi_ok': 'ПСИ ✓', 'psi_fail': 'ПСИ ✕',
+        'packaged': 'Упаковано'
+    };
+    return m[s] || s || '—';
+}
+
+function stageBadge(s) {
+    var m = {
+        'new': 'badge-neutral', 'visual_ok': 'badge-info', 'visual_fail': 'badge-error',
+        'diagnostics_ok': 'badge-warning', 'diagnostics_fail': 'badge-error',
+        'assembled': 'badge-info', 'psi_ok': 'badge-success', 'psi_fail': 'badge-error',
+        'packaged': 'badge-success'
+    };
+    return m[s] || 'badge-neutral';
+}
+
+function renderPipeline(currentStage, isBoard) {
+    var stages;
+    if (isBoard) {
+        stages = [
+            { k: 'new', l: 'Новая' },
+            { k: 'visual_ok', l: 'Осмотр' },
+            { k: 'diagnostics_ok', l: 'Диагностика' },
+            { k: 'assembled', l: 'В составе' }
+        ];
+    } else {
+        stages = [
+            { k: 'assembled', l: 'Собрано' },
+            { k: 'psi_ok', l: 'ПСИ' },
+            { k: 'packaged', l: 'Упаковано' }
+        ];
     }
 
-    try {
-        AppState.devices = await apiRequest('/api/devices');
-        AppState.filteredDevices = [...AppState.devices];
-        renderDevicesPage();
-    } catch (err) {
-        if (content) {
-            content.innerHTML = `<div class="empty-state"><h3>Ошибка загрузки</h3><p>${err.message}</p></div>`;
+    var passed = true;
+    var html = '<div class="pipeline">';
+    for (var i = 0; i < stages.length; i++) {
+        var s = stages[i];
+        var cls = 'pending';
+        if (s.k === currentStage) {
+            cls = 'current';
+            passed = false;
+        } else if (passed) {
+            cls = 'done';
         }
+        if (i > 0) html += '<span class="pipeline-arrow">→</span>';
+        html += '<span class="pipeline-step ' + cls + '">' + (cls === 'done' ? '✓ ' : '') + s.l + '</span>';
+    }
+    html += '</div>';
+    return html;
+}
+
+// ============ DEVICES ============
+async function loadDevices() {
+    var content = document.getElementById('contentArea');
+    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка устройств...</p></div>';
+
+    try {
+        var results = await Promise.all([
+            api('/api/devices'),
+            api('/api/device-types')
+        ]);
+
+        S.devices = results[0] || [];
+        S.deviceTypes = results[1] || [];
+        S.filteredDevices = S.devices.slice();
+        renderDevicesPage();
+    } catch (e) {
+        content.innerHTML = '<div class="empty-state"><p>Ошибка загрузки устройств: ' + e.message + '</p><button class="btn btn-primary" onclick="loadDevices()" style="margin-top:16px">Повторить</button></div>';
     }
 }
 
 function renderDevicesPage() {
-    const content = document.getElementById('contentArea');
-    const user = AppState.currentUser;
-    const canEdit = user && (user.role === 'admin' || user.role === 'user');
+    var content = document.getElementById('contentArea');
+    var canEditFlag = S.user && S.user.role !== 'operator';
 
-    if (!content) return;
+    var typeOptions = '';
+    for (var i = 0; i < S.deviceTypes.length; i++) {
+        var t = S.deviceTypes[i];
+        typeOptions += '<option value="' + t.code + '">' + t.name + ' (' + t.code + ')</option>';
+    }
 
-    content.innerHTML = `
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon">📱</div>
-                <div class="stat-label">Всего устройств</div>
-                <div class="stat-value">${AppState.devices.length}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">🔌</div>
-                <div class="stat-label">Маршрутизаторы (RS)</div>
-                <div class="stat-value">${AppState.devices.filter(d => d.device_type_code === 'RS').length}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">🔀</div>
-                <div class="stat-label">Коммутаторы (SA)</div>
-                <div class="stat-value">${AppState.devices.filter(d => d.device_type_code === 'SA').length}</div>
-            </div>
-        </div>
+    var rsCount = 0, saCount = 0, packagedCount = 0;
+    for (var i = 0; i < S.devices.length; i++) {
+        if (S.devices[i].device_type_code === 'RS') rsCount++;
+        if (S.devices[i].device_type_code === 'SA') saCount++;
+        if (S.devices[i].current_stage === 'packaged') packagedCount++;
+    }
 
-        <div class="search-panel">
-            <input type="text" id="searchInput" placeholder="Поиск по серийному номеру, типу..." oninput="searchDevices()">
-            <select id="filterType" onchange="searchDevices()">
-                <option value="">Все типы</option>
-                ${AppState.deviceTypes.map(t => `<option value="${t.code}">${t.name}</option>`).join('')}
-            </select>
-            <select id="filterLocation" onchange="searchDevices()">
-                <option value="">Все местоположения</option>
-                ${AppState.locations.map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
-            </select>
-            ${canEdit ? '<button class="btn btn-primary" onclick="addDevice()">+ Добавить</button>' : ''}
-        </div>
+    var html = '';
+    html += '<div class="stats-grid">';
+    html += '<div class="stat-card"><div class="stat-icon blue">📦</div><div class="stat-info"><span class="stat-value">' + S.devices.length + '</span><span class="stat-label">Всего</span></div></div>';
+    html += '<div class="stat-card"><div class="stat-icon green">🔌</div><div class="stat-info"><span class="stat-value">' + rsCount + '</span><span class="stat-label">Маршрутизаторов</span></div></div>';
+    html += '<div class="stat-card"><div class="stat-icon purple">🔀</div><div class="stat-info"><span class="stat-value">' + saCount + '</span><span class="stat-label">Коммутаторов</span></div></div>';
+    html += '<div class="stat-card"><div class="stat-icon orange">📦</div><div class="stat-info"><span class="stat-value">' + packagedCount + '</span><span class="stat-label">Упаковано</span></div></div>';
+    html += '</div>';
 
-        <div class="table-wrapper">
-            <table class="data-table" id="devicesTable">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Серийный номер</th>
-                        <th>Тип</th>
-                        <th>Модификация</th>
-                        <th>Дата производства</th>
-                        <th>Местоположение</th>
-                        <th>Диагностика</th>
-                        <th>Действия</th>
-                    </tr>
-                </thead>
-                <tbody id="devicesTableBody"></tbody>
-            </table>
-        </div>
-    `;
-    renderDevicesTable();
+    html += '<div class="action-panel">';
+    html += '<div class="search-input-wrap">';
+    html += '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
+    html += '<input type="text" class="search-input" placeholder="Поиск..." oninput="filterDevices()" id="searchInput">';
+    html += '</div>';
+    html += '<select class="filter-select" onchange="filterDevices()" id="typeFilter"><option value="">Все типы</option>' + typeOptions + '</select>';
+    if (canEditFlag) {
+        html += '<button class="btn btn-primary" onclick="showAddDevice()">+ Добавить</button>';
+    }
+    html += '</div>';
+
+    html += '<div class="device-card-grid" id="deviceCards"></div>';
+
+    content.innerHTML = html;
+    renderDeviceCards();
 }
 
-function renderDevicesTable() {
-    const tbody = document.getElementById('devicesTableBody');
-    if (!tbody) return;
-    const user = AppState.currentUser;
-    const canEditFlag = user && (user.role === 'admin' || user.role === 'user');
-    const isAdmin = user && user.role === 'admin';
+function renderDeviceCards() {
+    var el = document.getElementById('deviceCards');
+    if (!el) return;
 
-    if (AppState.filteredDevices.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted)">Устройства не найдены</td></tr>';
+    var devs = S.filteredDevices;
+    if (!devs.length) {
+        el.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><p>Устройства не найдены</p></div>';
         return;
     }
 
-    tbody.innerHTML = AppState.filteredDevices.map(d => `
-        <tr class="clickable-row" ondblclick="showDeviceDetails(${d.id})">
-            <td>${d.id}</td>
-            <td><strong>${escapeHtml(d.product_serial_number)}</strong></td>
-            <td><span class="status-badge ${d.device_type_code === 'RS' ? 'success' : 'warning'}">${escapeHtml(d.device_type_name)}</span></td>
-            <td>${escapeHtml(d.type)}</td>
-            <td>${escapeHtml(d.manufactures_date)}</td>
-            <td>${escapeHtml(d.location_name || '—')}</td>
-            <td>${d.diag ? '<span class="status-badge success">✓ Пройдена</span>' : '<span class="status-badge danger">✗ Нет</span>'}</td>
-            <td>
-                <div class="action-buttons">
-                    <button class="action-btn view" onclick="showDeviceDetails(${d.id})" title="Подробнее">👁</button>
-                    ${canEditFlag ? `<button class="action-btn edit" onclick="editDevice(${d.id})" title="Редактировать">✏️</button>` : ''}
-                    ${isAdmin ? `<button class="action-btn delete" onclick="deleteDevice(${d.id})" title="Удалить">🗑</button>` : ''}
-                </div>
-            </td>
-        </tr>
-    `).join('');
-}
+    var isAdmin = S.user && S.user.role === 'admin';
+    var canEditFlag = S.user && S.user.role !== 'operator';
+    var html = '';
 
-function searchDevices() {
-    const query = (document.getElementById('searchInput')?.value || '').toLowerCase();
-    const typeFilter = document.getElementById('filterType')?.value || '';
-    const locationFilter = document.getElementById('filterLocation')?.value || '';
+    for (var i = 0; i < devs.length; i++) {
+        var d = devs[i];
+        var img = d.image_path || getDeviceImage(d.type);
+        var typeBadge = d.device_type_code === 'RS' ? 'badge-info' : 'badge-success';
 
-    AppState.filteredDevices = AppState.devices.filter(d => {
-        const matchQuery = !query ||
-            (d.product_serial_number || '').toLowerCase().includes(query) ||
-            (d.type || '').toLowerCase().includes(query) ||
-            (d.device_type_name || '').toLowerCase().includes(query);
-        const matchType = !typeFilter || d.device_type_code === typeFilter;
-        const matchLocation = !locationFilter || String(d.actual_location_id) === locationFilter;
-        return matchQuery && matchType && matchLocation;
-    });
-    renderDevicesTable();
-}
-
-function getDeviceImage(deviceType) {
-    if (!deviceType) return '/images/default.png';
-    const type = deviceType.toLowerCase();
-    if (type.includes('isn41508t3-m-ac')) return '/images/ISBN41508T3-M-AC.png';
-    if (type.includes('isn41508t3-m')) return '/images/ISBN41508T3-M.png';
-    if (type.includes('isn41508t3')) return '/images/ISBN41508T3.png';
-    if (type.includes('isn41508t4')) return '/images/ISBN41508T4.png';
-    if (type.includes('isn50502t5')) return '/images/ISN50502T5.png';
-    if (type.includes('isn42124t5c4')) return '/images/ISBN41508T3.png';
-    if (type.includes('isn42124t5p5')) return '/images/ISBN41508T3-M.png';
-    if (type.includes('isn42124x5')) return '/images/ISBN41508T4.png';
-    return '/images/default.png';
-}
-
-function showDeviceDetails(id) {
-    const device = AppState.devices.find(d => d.id === id);
-    if (!device) return;
-
-    const modalTitle = document.getElementById('modalTitle');
-    const modalBody = document.getElementById('modalBody');
-    
-    if (modalTitle) modalTitle.textContent = `Устройство: ${device.product_serial_number}`;
-    if (modalBody) {
-        modalBody.innerHTML = `
-            <div style="text-align:center;margin-bottom:20px;">
-                <img src="${getDeviceImage(device.type)}" alt="${device.type}" class="device-image"
-                     onerror="this.src='/images/default.png'">
-            </div>
-
-            <div class="detail-section">
-                <h3>Основная информация</h3>
-                <div class="detail-row"><span class="label">Серийный номер</span><span class="value">${escapeHtml(device.product_serial_number)}</span></div>
-                <div class="detail-row"><span class="label">Тип устройства</span><span class="value">${escapeHtml(device.device_type_name)}</span></div>
-                <div class="detail-row"><span class="label">Модификация</span><span class="value">${escapeHtml(device.type)}</span></div>
-                <div class="detail-row"><span class="label">Дата производства</span><span class="value">${escapeHtml(device.manufactures_date)}</span></div>
-                <div class="detail-row"><span class="label">Место производства</span><span class="value">${escapeHtml(device.place_name || '—')}</span></div>
-                <div class="detail-row"><span class="label">Месяц</span><span class="value">${escapeHtml(device.month_name || '—')}</span></div>
-                <div class="detail-row"><span class="label">Год</span><span class="value">${escapeHtml(device.year_name || '—')}</span></div>
-                <div class="detail-row"><span class="label">Этап</span><span class="value">${escapeHtml(device.stage_name || '—')}</span></div>
-                <div class="detail-row"><span class="label">Местоположение</span><span class="value">${escapeHtml(device.location_name || '—')}</span></div>
-                <div class="detail-row"><span class="label">ОС</span><span class="value">${escapeHtml(device.version_os || '—')}</span></div>
-                <div class="detail-row"><span class="label">Диагностика</span><span class="value">${device.diag ? '✓ Пройдена' : '✗ Не пройдена'}</span></div>
-            </div>
-
-            <div class="detail-section">
-                <h3>Прошивки</h3>
-                <div class="detail-row"><span class="label">BMC</span><span class="value">${escapeHtml(device.version_bmc || '—')}</span></div>
-                <div class="detail-row"><span class="label">U-Boot</span><span class="value">${escapeHtml(device.version_uboot || '—')}</span></div>
-                <div class="detail-row"><span class="label">ISO</span><span class="value">${escapeHtml(device.version_iso || '—')}</span></div>
-            </div>
-
-            <div class="detail-section">
-                <h3>Серийные номера компонентов</h3>
-                <div class="detail-row"><span class="label">Плата</span><span class="value">${escapeHtml(device.serial_num_board || '—')}</span></div>
-                <div class="detail-row"><span class="label">Печатная плата</span><span class="value">${escapeHtml(device.serial_num_pcb || '—')}</span></div>
-                <div class="detail-row"><span class="label">Маршрутизатор</span><span class="value">${escapeHtml(device.serial_num_router || '—')}</span></div>
-                <div class="detail-row"><span class="label">PKI модуль</span><span class="value">${escapeHtml(device.serial_num_pki || '—')}</span></div>
-                <div class="detail-row"><span class="label">Блок питания</span><span class="value">${escapeHtml(device.serial_num_bp || '—')}</span></div>
-                <div class="detail-row"><span class="label">Упаковка</span><span class="value">${escapeHtml(device.serial_num_package || '—')}</span></div>
-                <div class="detail-row"><span class="label">Корпус</span><span class="value">${escapeHtml(device.serial_num_case || '—')}</span></div>
-            </div>
-
-            ${device.macs && device.macs.length > 0 ? `
-            <div class="detail-section">
-                <h3>MAC-адреса</h3>
-                ${device.macs.map(m => `
-                    <div class="detail-row">
-                        <span class="label">${escapeHtml(m.interface_name)}</span>
-                        <span class="value" style="font-family:monospace">${escapeHtml(m.mac_address)}</span>
-                    </div>
-                `).join('')}
-            </div>` : ''}
-
-            ${device.assemblers && device.assemblers.length > 0 ? `
-            <div class="detail-section">
-                <h3>Сборка</h3>
-                ${device.assemblers.map(a => `
-                    <div class="detail-row">
-                        <span class="label">${escapeHtml(a.last_name)} ${escapeHtml(a.first_name)}</span>
-                        <span class="value">${escapeHtml(a.assembly_date)}</span>
-                    </div>
-                `).join('')}
-            </div>` : ''}
-
-            ${device.electricians && device.electricians.length > 0 ? `
-            <div class="detail-section">
-                <h3>Диагностика</h3>
-                ${device.electricians.map(e => `
-                    <div class="detail-row">
-                        <span class="label">${escapeHtml(e.last_name)} ${escapeHtml(e.first_name)} (${escapeHtml(e.diagnosis_date)})</span>
-                        <span class="value">${escapeHtml(e.diagnosis_result)}</span>
-                    </div>
-                `).join('')}
-            </div>` : ''}
-
-            ${device.psi_tests && device.psi_tests.length > 0 ? `
-            <div class="detail-section">
-                <h3>ПСИ-испытания</h3>
-                ${device.psi_tests.map(p => `
-                    <div class="detail-row">
-                        <span class="label">Протокол ${escapeHtml(p.protocol_number)} (${escapeHtml(p.test_date)})</span>
-                        <span class="value">${escapeHtml(p.test_result)}</span>
-                    </div>
-                `).join('')}
-            </div>` : ''}
-
-            ${device.history && device.history.length > 0 ? `
-            <div class="detail-section">
-                <h3>История операций</h3>
-                ${device.history.map(h => `
-                    <div class="detail-row">
-                        <span class="label">${escapeHtml(h.date_time)}</span>
-                        <span class="value">${escapeHtml(h.message)}</span>
-                    </div>
-                `).join('')}
-            </div>` : ''}
-
-            ${device.errors && device.errors.length > 0 ? `
-            <div class="detail-section">
-                <h3>Ошибки</h3>
-                ${device.errors.map(e => `
-                    <div class="detail-row">
-                        <span class="label">${escapeHtml(e.error_code)} (${escapeHtml(e.date)})</span>
-                        <span class="value">${escapeHtml(e.debug_info)}</span>
-                    </div>
-                `).join('')}
-            </div>` : ''}
-
-            ${device.repairs && device.repairs.length > 0 ? `
-            <div class="detail-section">
-                <h3>Ремонты</h3>
-                ${device.repairs.map(r => `
-                    <div class="detail-row">
-                        <span class="label">${escapeHtml(r.date_time)} → ${escapeHtml(r.date_time_repair)}</span>
-                        <span class="value">${escapeHtml(r.message)}</span>
-                    </div>
-                `).join('')}
-            </div>` : ''}
-        `;
+        html += '<div class="device-card" onclick="showDeviceDetails(' + d.id + ')">';
+        html += '<img class="device-card-img" src="' + img + '" alt="' + (d.type || '') + '" onerror="this.src=\'/images/ISN41508T3.png\'">';
+        html += '<div class="device-card-body">';
+        html += '<div class="device-card-title">' + (d.product_serial_number || '—') + '</div>';
+        html += '<div class="device-card-sub">' + (d.type || '—') + '</div>';
+        html += '<div class="device-card-meta">';
+        html += '<span class="badge ' + typeBadge + '">' + (d.device_type_code || '—') + '</span>';
+        html += '<span class="badge ' + stageBadge(d.current_stage) + '">' + stageLabel(d.current_stage) + '</span>';
+        html += '</div>';
+        html += renderPipeline(d.current_stage, false);
+        html += '<div class="device-card-footer">';
+        html += '<span style="font-size:12px;color:var(--text-muted)">' + (d.manufactures_date || '—') + '</span>';
+        html += '<div class="cell-actions" onclick="event.stopPropagation()">';
+        if (canEditFlag) {
+            html += '<button class="btn-icon" onclick="editDevice(' + d.id + ')" title="Редактировать"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>';
+        }
+        if (isAdmin) {
+            html += '<button class="btn-icon danger" onclick="deleteDevice(' + d.id + ')" title="Удалить"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>';
+        }
+        html += '</div></div></div></div>';
     }
 
-    const modalOverlay = document.getElementById('modalOverlay');
-    if (modalOverlay) modalOverlay.style.display = 'flex';
+    el.innerHTML = html;
 }
 
-function addDevice() {
-    const modalTitle = document.getElementById('modalTitle');
-    const modalBody = document.getElementById('modalBody');
-    
-    if (modalTitle) modalTitle.textContent = 'Добавить устройство';
-    if (modalBody) modalBody.innerHTML = renderDeviceForm();
-    
-    const modalOverlay = document.getElementById('modalOverlay');
-    if (modalOverlay) modalOverlay.style.display = 'flex';
-}
+function filterDevices() {
+    var search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+    var typeFilter = document.getElementById('typeFilter')?.value || '';
 
-function editDevice(id) {
-    const device = AppState.devices.find(d => d.id === id);
-    if (!device) return;
-    
-    const modalTitle = document.getElementById('modalTitle');
-    const modalBody = document.getElementById('modalBody');
-    
-    if (modalTitle) modalTitle.textContent = 'Редактировать устройство';
-    if (modalBody) modalBody.innerHTML = renderDeviceForm(device);
-    
-    const modalOverlay = document.getElementById('modalOverlay');
-    if (modalOverlay) modalOverlay.style.display = 'flex';
-}
-
-function renderDeviceForm(device = null) {
-    const isEdit = !!device;
-    return `
-        <form onsubmit="saveDevice(event, ${device ? device.id : 'null'})">
-            <div class="form-grid">
-                <div class="form-group">
-                    <label>Тип устройства *</label>
-                    <select name="device_type_id" required>
-                        <option value="">Выберите тип</option>
-                        ${AppState.deviceTypes.map(t =>
-                            `<option value="${t.id}" ${device?.device_type_id == t.id ? 'selected' : ''}>${t.name} (${t.code})</option>`
-                        ).join('')}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Серийный номер *</label>
-                    <input type="text" name="product_serial_number" value="${device?.product_serial_number || ''}" required>
-                </div>
-                <div class="form-group">
-                    <label>Модификация (тип)</label>
-                    <input type="text" name="type" value="${device?.type || ''}" placeholder="ISN4150873 +10n">
-                </div>
-                <div class="form-group">
-                    <label>Порядковый номер в месяце</label>
-                    <input type="text" name="monthly_sequence" value="${device?.monthly_sequence || ''}">
-                </div>
-                <div class="form-group">
-                    <label>Место производства</label>
-                    <select name="place_of_production_id">
-                        <option value="">Не указано</option>
-                        ${AppState.productionPlaces.map(p =>
-                            `<option value="${p.id}" ${device?.place_of_production_id == p.id ? 'selected' : ''}>${p.name} (${p.code})</option>`
-                        ).join('')}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Месяц производства</label>
-                    <select name="production_month_id">
-                        <option value="">Не указан</option>
-                        ${AppState.productionMonths.map(m =>
-                            `<option value="${m.id}" ${device?.production_month_id == m.id ? 'selected' : ''}>${m.name}</option>`
-                        ).join('')}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Год производства</label>
-                    <select name="production_year_id">
-                        <option value="">Не указан</option>
-                        ${AppState.productionYears.map(y =>
-                            `<option value="${y.id}" ${device?.production_year_id == y.id ? 'selected' : ''}>${y.name}</option>`
-                        ).join('')}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Этап производства</label>
-                    <select name="production_stage_id">
-                        <option value="">Не указан</option>
-                        ${AppState.productionStages.map(s =>
-                            `<option value="${s.id}" ${device?.production_stage_id == s.id ? 'selected' : ''}>${s.name} (${s.description || ''})</option>`
-                        ).join('')}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Местоположение</label>
-                    <select name="actual_location_id">
-                        <option value="">Не указано</option>
-                        ${AppState.locations.map(l =>
-                            `<option value="${l.id}" ${device?.actual_location_id == l.id ? 'selected' : ''}>${l.name}</option>`
-                        ).join('')}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Дата производства</label>
-                    <input type="date" name="manufactures_date" value="${device?.manufactures_date || ''}">
-                </div>
-                <div class="form-group">
-                    <label>Версия ОС</label>
-                    <input type="text" name="version_os" value="${device?.version_os || ''}">
-                </div>
-                <div class="form-group">
-                    <label>BMC</label>
-                    <select name="bmc_id">
-                        <option value="">Не указано</option>
-                        ${AppState.bmcList.map(b =>
-                            `<option value="${b.id}" ${device?.bmc_id == b.id ? 'selected' : ''}>${b.version_bmc}</option>`
-                        ).join('')}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>U-Boot</label>
-                    <select name="uboot_id">
-                        <option value="">Не указано</option>
-                        ${AppState.ubootList.map(u =>
-                            `<option value="${u.id}" ${device?.uboot_id == u.id ? 'selected' : ''}>${u.version_uboot}</option>`
-                        ).join('')}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>ISO</label>
-                    <select name="iso_id">
-                        <option value="">Не указано</option>
-                        ${AppState.isoList.map(i =>
-                            `<option value="${i.id}" ${device?.iso_id == i.id ? 'selected' : ''}>${i.version_iso}</option>`
-                        ).join('')}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Диагностика пройдена</label>
-                    <select name="diag">
-                        <option value="false" ${!device?.diag ? 'selected' : ''}>Нет</option>
-                        <option value="true" ${device?.diag ? 'selected' : ''}>Да</option>
-                    </select>
-                </div>
-            </div>
-            <div class="form-actions">
-                <button type="button" class="btn btn-outline" onclick="closeModalForce()">Отмена</button>
-                <button type="submit" class="btn btn-primary">${isEdit ? 'Сохранить' : 'Создать'}</button>
-            </div>
-        </form>
-    `;
-}
-
-async function saveDevice(event, id) {
-    event.preventDefault();
-    const form = event.target;
-    const formData = new FormData(form);
-    const data = {};
-    formData.forEach((val, key) => {
-        data[key] = val === '' ? null : val;
+    S.filteredDevices = S.devices.filter(function (d) {
+        var matchSearch = !search ||
+            (d.product_serial_number || '').toLowerCase().indexOf(search) !== -1 ||
+            (d.type || '').toLowerCase().indexOf(search) !== -1 ||
+            (d.location_name || '').toLowerCase().indexOf(search) !== -1;
+        var matchType = !typeFilter || d.device_type_code === typeFilter;
+        return matchSearch && matchType;
     });
-    data.diag = data.diag === 'true';
+
+    renderDeviceCards();
+}
+
+// ============ DEVICE DETAILS ============
+async function showDeviceDetails(id) {
+    try {
+        var d = await api('/api/devices/' + id);
+        if (!d) return;
+
+        var img = d.image_path || getDeviceImage(d.type);
+
+        // Boards
+        var boardsHtml = '';
+        if (d.boards && d.boards.length) {
+            for (var i = 0; i < d.boards.length; i++) {
+                var b = d.boards[i];
+                boardsHtml += '<div class="detail-row"><span class="detail-label">' + (b.board_type_name || '') + ' (' + b.serial_number + ')</span><span class="detail-value"><span class="badge ' + stageBadge(b.current_stage) + '">' + stageLabel(b.current_stage) + '</span></span></div>';
+            }
+        } else {
+            boardsHtml = '<p style="color:var(--text-muted)">Нет привязанных плат</p>';
+        }
+
+        // MACs
+        var macHtml = '';
+        if (d.macs && d.macs.length) {
+            for (var i = 0; i < d.macs.length; i++) {
+                var m = d.macs[i];
+                macHtml += '<div class="detail-row"><span class="detail-label">' + m.interface_name + '</span><span class="detail-value">' + m.mac_address + '</span></div>';
+            }
+        } else {
+            macHtml = '<p style="color:var(--text-muted)">Нет</p>';
+        }
+
+        // History
+        var historyHtml = '';
+        if (d.history && d.history.length) {
+            for (var i = 0; i < d.history.length; i++) {
+                var h = d.history[i];
+                historyHtml += '<div class="recent-item"><div class="recent-item-icon">📋</div><div class="recent-item-info"><div class="recent-item-title">' + (h.message || '—') + '</div><div class="recent-item-sub">' + (h.date_time || '') + (h.emp_name ? ' — ' + h.emp_name : '') + '</div></div></div>';
+            }
+        } else {
+            historyHtml = '<p style="color:var(--text-muted)">Нет записей</p>';
+        }
+
+        var html = '';
+        html += '<div style="text-align:center;margin-bottom:20px">';
+        html += '<img src="' + img + '" alt="' + (d.type || '') + '" style="max-height:200px;object-fit:contain;border-radius:var(--radius-md)" onerror="this.src=\'/images/ISN41508T3.png\'">';
+        html += '</div>';
+        html += renderPipeline(d.current_stage, false);
+
+        html += '<div class="detail-grid">';
+
+        // Basic info
+        html += '<div class="detail-group"><div class="detail-group-title">Основная информация</div>';
+        html += '<div class="detail-row"><span class="detail-label">Серийный номер</span><span class="detail-value">' + (d.product_serial_number || '—') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Тип</span><span class="detail-value">' + (d.device_type_name || '—') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Модификация</span><span class="detail-value">' + (d.type || '—') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Дата</span><span class="detail-value">' + (d.manufactures_date || '—') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">ОС</span><span class="detail-value">' + (d.version_os || '—') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Стадия</span><span class="detail-value"><span class="badge ' + stageBadge(d.current_stage) + '">' + stageLabel(d.current_stage) + '</span></span></div>';
+        html += '</div>';
+
+        // Stands
+        html += '<div class="detail-group"><div class="detail-group-title">Стенды</div>';
+        html += '<div class="detail-row"><span class="detail-label">Сборка</span><span class="detail-value">' + (d.assembly_passed ? '✅ ' + (d.assembly_employee_full || '') : '❌') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">ПСИ</span><span class="detail-value">' + (d.psi_passed ? '✅ ' + (d.psi_protocol_number || '') : '❌') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Упаковка</span><span class="detail-value">' + (d.packaging_passed ? '✅ Паспорт: ' + (d.passport_printed ? '✓' : '✕') : '❌') + '</span></div>';
+        html += '</div>';
+
+        // Boards
+        html += '<div class="detail-group"><div class="detail-group-title">Платы</div>' + boardsHtml + '</div>';
+
+        // MACs
+        html += '<div class="detail-group"><div class="detail-group-title">MAC-адреса</div>' + macHtml + '</div>';
+
+        html += '</div>'; // end detail-grid
+
+        // History
+        html += '<div class="section-card" style="margin-top:20px"><h3>📋 История</h3><div class="recent-list">' + historyHtml + '</div></div>';
+
+        openModal('Устройство: ' + (d.product_serial_number || ''), html);
+    } catch (e) {
+        toast('Ошибка: ' + e.message, 'error');
+    }
+}
+
+// ============ ADD/EDIT DEVICE ============
+async function loadFormData() {
+    var promises = [];
+    if (!S.productionPlaces.length) promises.push(api('/api/production-places').then(function (r) { S.productionPlaces = r || []; }));
+    if (!S.productionMonths.length) promises.push(api('/api/production-months').then(function (r) { S.productionMonths = r || []; }));
+    if (!S.productionYears.length) promises.push(api('/api/production-years').then(function (r) { S.productionYears = r || []; }));
+    if (!S.productionStages.length) promises.push(api('/api/production-stages').then(function (r) { S.productionStages = r || []; }));
+    if (!S.locations.length) promises.push(api('/api/locations').then(function (r) { S.locations = r || []; }));
+    if (!S.deviceTypes.length) promises.push(api('/api/device-types').then(function (r) { S.deviceTypes = r || []; }));
+    if (!S.boardTypes.length) promises.push(api('/api/board-types').then(function (r) { S.boardTypes = r || []; }));
+    await Promise.all(promises);
+}
+
+function makeSelectOptions(arr, codeField, labelField, selectedId) {
+    var html = '';
+    for (var i = 0; i < arr.length; i++) {
+        var item = arr[i];
+        var sel = item.id == selectedId ? ' selected' : '';
+        var extra = item[codeField] ? ' (' + item[codeField] + ')' : '';
+        html += '<option value="' + item.id + '"' + sel + '>' + item[labelField] + extra + '</option>';
+    }
+    return html;
+}
+
+async function showAddDevice(data) {
+    await loadFormData();
+    var d = data || {};
+    var title = d.id ? 'Редактировать' : 'Новое устройство';
+
+    var html = '<form onsubmit="saveDevice(event,' + (d.id || 'null') + ')">';
+    html += '<div class="form-grid">';
+    html += '<div class="form-group"><label class="form-label">Тип *</label><select class="form-select" name="device_type_id" required><option value="">Выберите</option>' + makeSelectOptions(S.deviceTypes, 'code', 'name', d.device_type_id) + '</select></div>';
+    html += '<div class="form-group"><label class="form-label">Серийный номер *</label><input class="form-input" name="product_serial_number" value="' + (d.product_serial_number || '') + '" required></div>';
+    html += '<div class="form-group"><label class="form-label">Модификация</label><input class="form-input" name="type" value="' + (d.type || '') + '"></div>';
+    html += '<div class="form-group"><label class="form-label">Дата производства</label><input class="form-input" type="date" name="manufactures_date" value="' + (d.manufactures_date || '') + '"></div>';
+    html += '<div class="form-group"><label class="form-label">Место</label><select class="form-select" name="place_of_production_id"><option value="">—</option>' + makeSelectOptions(S.productionPlaces, 'code', 'name', d.place_of_production_id) + '</select></div>';
+    html += '<div class="form-group"><label class="form-label">Расположение</label><select class="form-select" name="actual_location_id"><option value="">—</option>' + makeSelectOptions(S.locations, '', 'name', d.actual_location_id) + '</select></div>';
+    html += '<div class="form-group"><label class="form-label">Версия ОС</label><input class="form-input" name="version_os" value="' + (d.version_os || '') + '"></div>';
+    html += '<div class="form-group"><label class="form-label">Изображение</label><input class="form-input" name="image_path" value="' + (d.image_path || '') + '" placeholder="/images/ISN41508T3.png"></div>';
+    html += '</div>';
+    html += '<div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button><button type="submit" class="btn btn-primary">' + (d.id ? 'Сохранить' : 'Создать') + '</button></div>';
+    html += '</form>';
+
+    openModal(title, html);
+}
+
+async function saveDevice(event, deviceId) {
+    event.preventDefault();
+    var formData = new FormData(event.target);
+    var data = {};
+    formData.forEach(function (value, key) { data[key] = value; });
+    data.diag = false;
+
+    // Convert empty to null
+    var nullFields = ['place_of_production_id', 'production_month_id', 'production_year_id', 'production_stage_id', 'actual_location_id', 'bmc_id', 'uboot_id', 'iso_id'];
+    for (var i = 0; i < nullFields.length; i++) {
+        if (!data[nullFields[i]]) data[nullFields[i]] = null;
+    }
 
     try {
-        if (id) {
-            await apiRequest(`/api/devices/${id}`, { method: 'PUT', body: data });
-            notify('Устройство обновлено', 'success');
+        if (deviceId) {
+            await api('/api/devices/' + deviceId, { method: 'PUT', body: JSON.stringify(data) });
+            toast('Обновлено', 'success');
         } else {
-            await apiRequest('/api/devices', { method: 'POST', body: data });
-            notify('Устройство создано', 'success');
+            await api('/api/devices', { method: 'POST', body: JSON.stringify(data) });
+            toast('Создано', 'success');
         }
-        closeModalForce();
+        closeModal();
         loadDevices();
-    } catch (err) {
-        notify(err.message, 'error');
+    } catch (e) {
+        toast(e.message, 'error');
     }
+}
+
+async function editDevice(id) {
+    var d = null;
+    for (var i = 0; i < S.devices.length; i++) {
+        if (S.devices[i].id === id) { d = S.devices[i]; break; }
+    }
+    if (d) showAddDevice(d);
 }
 
 async function deleteDevice(id) {
-    if (!confirm('Удалить устройство? Все связанные данные будут удалены.')) return;
+    if (!confirm('Удалить устройство?')) return;
     try {
-        await apiRequest(`/api/devices/${id}`, { method: 'DELETE' });
-        notify('Устройство удалено', 'success');
+        await api('/api/devices/' + id, { method: 'DELETE' });
+        toast('Удалено', 'success');
         loadDevices();
-    } catch (err) {
-        notify(err.message, 'error');
+    } catch (e) {
+        toast(e.message, 'error');
     }
 }
 
-// ======== ТИПЫ УСТРОЙСТВ ========
-function renderDeviceTypes() {
-    const content = document.getElementById('contentArea');
-    const isAdmin = AppState.currentUser && AppState.currentUser.role === 'admin';
-
-    if (!content) return;
-
-    content.innerHTML = `
-        <div class="info-box">
-            <h3>Типы изделий</h3>
-            <p>Справочник типов выпускаемых устройств. Код типа используется в серийном номере.</p>
-        </div>
-
-        ${isAdmin ? `
-        <div class="search-panel">
-            <input type="text" id="newTypeName" placeholder="Название типа">
-            <input type="text" id="newTypeCode" placeholder="Код (2 символа)" maxlength="10" style="max-width:150px;">
-            <button class="btn btn-primary" onclick="addDeviceType()">+ Добавить тип</button>
-        </div>` : ''}
-
-        <div class="table-wrapper">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Код</th>
-                        <th>Название</th>
-                        <th>Кол-во устройств</th>
-                        ${isAdmin ? '<th>Действия</th>' : ''}
-                    </tr>
-                </thead>
-                <tbody>
-                    ${AppState.deviceTypes.map(t => {
-                        const count = AppState.devices.filter(d => d.device_type_id === t.id).length;
-                        return `<tr>
-                            <td>${t.id}</td>
-                            <td><strong>${escapeHtml(t.code)}</strong></td>
-                            <td>${escapeHtml(t.name)}</td>
-                            <td>${count}</td>
-                            ${isAdmin ? `<td>
-                                <button class="action-btn delete" onclick="deleteDeviceType(${t.id})" title="Удалить" ${count > 0 ? 'disabled style="opacity:0.3"' : ''}>🗑</button>
-                             </td>` : ''}
-                        </tr>`;
-                    }).join('')}
-                </tbody>
-            </table>
-        </div>
-    `;
-}
-
-async function addDeviceType() {
-    const name = document.getElementById('newTypeName')?.value.trim();
-    const code = document.getElementById('newTypeCode')?.value.trim();
-    if (!name || !code) return notify('Заполните все поля', 'error');
+// ============ BOARDS ============
+async function loadBoards() {
+    var content = document.getElementById('contentArea');
+    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка...</p></div>';
 
     try {
-        await apiRequest('/api/device-types', { method: 'POST', body: { name, code } });
-        notify('Тип добавлен', 'success');
-        await loadAllData();
-        renderDeviceTypes();
-    } catch (err) {
-        notify(err.message, 'error');
-    }
-}
+        var results = await Promise.all([
+            api('/api/boards'),
+            api('/api/board-types')
+        ]);
+        S.boards = results[0] || [];
+        S.boardTypes = results[1] || [];
 
-async function deleteDeviceType(id) {
-    if (!confirm('Удалить тип устройства?')) return;
-    try {
-        await apiRequest(`/api/device-types/${id}`, { method: 'DELETE' });
-        notify('Тип удалён', 'success');
-        await loadAllData();
-        renderDeviceTypes();
-    } catch (err) {
-        notify(err.message, 'error');
-    }
-}
+        var canEditFlag = S.user && S.user.role !== 'operator';
 
-// ======== КОМПЛЕКТУЮЩИЕ ========
-async function loadComponents() {
-    const content = document.getElementById('contentArea');
-    if (content) {
-        content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка комплектующих...</p></div>';
-    }
-
-    try {
-        const components = await apiRequest('/api/components');
-        renderComponents(components);
-    } catch (err) {
-        if (content) {
-            content.innerHTML = `<div class="empty-state"><h3>Ошибка</h3><p>${err.message}</p></div>`;
+        var viCount = 0, diagCount = 0, asmCount = 0;
+        for (var i = 0; i < S.boards.length; i++) {
+            if (S.boards[i].visual_inspection_passed) viCount++;
+            if (S.boards[i].diagnostics_passed) diagCount++;
+            if (S.boards[i].assembly_passed) asmCount++;
         }
+
+        var html = '';
+        html += '<div class="stats-grid">';
+        html += '<div class="stat-card"><div class="stat-icon blue">🔲</div><div class="stat-info"><span class="stat-value">' + S.boards.length + '</span><span class="stat-label">Всего плат</span></div></div>';
+        html += '<div class="stat-card"><div class="stat-icon green">✅</div><div class="stat-info"><span class="stat-value">' + viCount + '</span><span class="stat-label">Осмотрено</span></div></div>';
+        html += '<div class="stat-card"><div class="stat-icon orange">⚡</div><div class="stat-info"><span class="stat-value">' + diagCount + '</span><span class="stat-label">Диагностировано</span></div></div>';
+        html += '<div class="stat-card"><div class="stat-icon purple">🔧</div><div class="stat-info"><span class="stat-value">' + asmCount + '</span><span class="stat-label">В изделиях</span></div></div>';
+        html += '</div>';
+
+        html += '<div class="action-panel">';
+        html += '<div class="search-input-wrap"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
+        html += '<input type="text" class="search-input" placeholder="Поиск..." oninput="filterBoardsTable(this.value)" id="boardSearch"></div>';
+        if (canEditFlag) {
+            html += '<button class="btn btn-primary" onclick="showAddBoard()">+ Новая плата</button>';
+        }
+        html += '</div>';
+
+        html += '<div class="table-card"><div class="table-wrapper"><table class="data-table"><thead><tr>';
+        html += '<th>Серийный номер</th><th>Тип</th><th>Стадия</th><th>Устройство</th><th>Осмотр</th><th>Диагностика</th>';
+        html += '</tr></thead><tbody id="boardsBody">';
+
+        for (var i = 0; i < S.boards.length; i++) {
+            var b = S.boards[i];
+            html += '<tr>';
+            html += '<td><strong style="color:var(--primary);cursor:pointer" onclick="showBoardDetails(' + b.id + ')">' + b.serial_number + '</strong></td>';
+            html += '<td><span class="badge badge-neutral">' + (b.board_type_name || '—') + '</span></td>';
+            html += '<td><span class="badge ' + stageBadge(b.current_stage) + '">' + stageLabel(b.current_stage) + '</span></td>';
+            html += '<td>' + (b.device_serial || '—') + '</td>';
+            html += '<td>' + (b.visual_inspection_passed ? '<span class="badge badge-success">✓</span>' : '<span class="badge badge-neutral">—</span>') + '</td>';
+            html += '<td>' + (b.diagnostics_passed ? '<span class="badge badge-success">✓</span>' : '<span class="badge badge-neutral">—</span>') + '</td>';
+            html += '</tr>';
+        }
+
+        html += '</tbody></table></div></div>';
+        content.innerHTML = html;
+    } catch (e) {
+        content.innerHTML = '<div class="empty-state"><p>Ошибка: ' + e.message + '</p></div>';
     }
 }
 
-function renderComponents(components) {
-    const content = document.getElementById('contentArea');
-    const canEdit = AppState.currentUser && AppState.currentUser.role !== 'operator';
-    const isAdmin = AppState.currentUser && AppState.currentUser.role === 'admin';
-
-    if (!content) return;
-
-    content.innerHTML = `
-        <div class="info-box">
-            <h3>Комплектующие</h3>
-            <p>Серийные номера компонентов устройств: платы, блоки питания, корпуса и т.д.</p>
-        </div>
-
-        ${canEdit ? `
-        <div class="search-panel">
-            <select id="compDeviceId">
-                <option value="">Выберите устройство</option>
-                ${AppState.devices.map(d => `<option value="${d.id}">${d.product_serial_number}</option>`).join('')}
-            </select>
-            <select id="compType">
-                <option value="">Тип компонента</option>
-                <option value="serial_num_board">Плата</option>
-                <option value="serial_num_pcb">Печатная плата</option>
-                <option value="serial_num_router">Маршрутизатор</option>
-                <option value="serial_num_pki">PKI модуль</option>
-                <option value="serial_num_bp">Блок питания</option>
-                <option value="serial_num_package">Упаковка</option>
-                <option value="serial_num_case">Корпус</option>
-            </select>
-            <input type="text" id="compSerial" placeholder="Серийный номер">
-            <button class="btn btn-primary" onclick="addComponent()">+ Добавить</button>
-        </div>` : ''}
-
-        <div class="table-wrapper">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Тип</th>
-                        <th>Серийный номер</th>
-                        <th>Устройство</th>
-                        ${isAdmin ? '<th>Действия</th>' : ''}
-                    </tr>
-                </thead>
-                <tbody>
-                    ${components.length === 0 ? '<tr><td colspan="5" style="text-align:center;padding:40px">Нет данных</td>' : ''}
-                    ${components.map(c => `
-                        <tr>
-                            <td>${c.id}</td>
-                            <td>${escapeHtml(c.component_name)}</td>
-                            <td><code>${escapeHtml(c.serial_number)}</code></td>
-                            <td>${escapeHtml(c.device_serial || '—')}</td>
-                            ${isAdmin ? `<td><button class="action-btn delete" onclick="deleteComponent('${c.component_type}', ${c.id})" title="Удалить">🗑</button></td>` : ''}
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
-    `;
+function filterBoardsTable(val) {
+    var search = val.toLowerCase();
+    var rows = document.querySelectorAll('#boardsBody tr');
+    for (var i = 0; i < rows.length; i++) {
+        rows[i].style.display = rows[i].textContent.toLowerCase().indexOf(search) !== -1 ? '' : 'none';
+    }
 }
 
-async function addComponent() {
-    const device_id = document.getElementById('compDeviceId')?.value;
-    const component_type = document.getElementById('compType')?.value;
-    const serial_number = document.getElementById('compSerial')?.value.trim();
-
-    if (!device_id || !component_type || !serial_number) {
-        return notify('Заполните все поля', 'error');
+function showAddBoard() {
+    var typeOpts = '';
+    for (var i = 0; i < S.boardTypes.length; i++) {
+        var t = S.boardTypes[i];
+        typeOpts += '<option value="' + t.id + '">' + t.name + ' (' + t.code + ')</option>';
     }
+
+    openModal('Новая плата',
+        '<form onsubmit="saveBoard(event)">' +
+        '<div class="form-grid">' +
+        '<div class="form-group"><label class="form-label">Тип *</label><select class="form-select" name="board_type_id" required><option value="">Выберите</option>' + typeOpts + '</select></div>' +
+        '<div class="form-group"><label class="form-label">Серийный номер *</label><input class="form-input" name="serial_number" required placeholder="MB-RS-2024-XXX"></div>' +
+        '</div>' +
+        '<div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button><button type="submit" class="btn btn-primary">Создать</button></div>' +
+        '</form>'
+    );
+}
+
+async function saveBoard(event) {
+    event.preventDefault();
+    var fd = new FormData(event.target);
+    var data = {};
+    fd.forEach(function (v, k) { data[k] = v; });
 
     try {
-        await apiRequest('/api/components', {
+        await api('/api/boards', { method: 'POST', body: JSON.stringify(data) });
+        toast('Плата создана', 'success');
+        closeModal();
+        loadBoards();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+async function showBoardDetails(id) {
+    try {
+        var b = await api('/api/boards/' + id);
+        if (!b) return;
+
+        var viHtml = '';
+        if (b.vi_records && b.vi_records.length) {
+            for (var i = 0; i < b.vi_records.length; i++) {
+                var r = b.vi_records[i];
+                viHtml += '<div class="detail-row"><span class="detail-label">' + (r.inspection_date || '') + '</span><span class="detail-value">' + (r.result ? '✅' : '❌') + ' ' + (r.comment || '') + '</span></div>';
+            }
+        } else {
+            viHtml = '<p style="color:var(--text-muted)">Нет</p>';
+        }
+
+        var diagHtml = '';
+        if (b.diag_records && b.diag_records.length) {
+            for (var i = 0; i < b.diag_records.length; i++) {
+                var r = b.diag_records[i];
+                diagHtml += '<div class="detail-row"><span class="detail-label">' + (r.diagnostics_date || '') + '</span><span class="detail-value">' + (r.result ? '✅' : '❌') + ' Порты:' + (r.ports_ok ? '✓' : '✕') + ' ОС:' + (r.os_installed ? '✓' : '✕') + '</span></div>';
+            }
+        } else {
+            diagHtml = '<p style="color:var(--text-muted)">Нет</p>';
+        }
+
+        var html = renderPipeline(b.current_stage, true);
+        html += '<div class="detail-grid">';
+        html += '<div class="detail-group"><div class="detail-group-title">Информация</div>';
+        html += '<div class="detail-row"><span class="detail-label">Серийный №</span><span class="detail-value">' + b.serial_number + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Тип</span><span class="detail-value">' + (b.board_type_name || '') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Стадия</span><span class="detail-value"><span class="badge ' + stageBadge(b.current_stage) + '">' + stageLabel(b.current_stage) + '</span></span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Устройство</span><span class="detail-value">' + (b.device_serial || 'Не привязана') + '</span></div>';
+        html += '</div>';
+        html += '<div class="detail-group"><div class="detail-group-title">Визуальный осмотр</div>' + viHtml + '</div>';
+        html += '<div class="detail-group"><div class="detail-group-title">Диагностика</div>' + diagHtml + '</div>';
+        html += '</div>';
+
+        openModal('Плата: ' + b.serial_number, html);
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+// ============ STANDS ============
+
+function renderStandVisual() {
+    document.getElementById('contentArea').innerHTML =
+        '<div class="stand-form"><div class="section-card">' +
+        '<h3>👁️ Стенд визуального осмотра</h3>' +
+        '<p style="color:var(--text-secondary);margin-bottom:20px">Считайте QR-код платы. Только новые платы.</p>' +
+        '<form onsubmit="submitVisualInspection(event)">' +
+        '<div class="form-grid">' +
+        '<div class="form-group full-width"><label class="form-label">Серийный номер платы *</label><input class="form-input" name="serial_number" required placeholder="Отсканируйте" autofocus></div>' +
+        '<div class="form-group full-width"><label class="form-label">Комментарий</label><textarea class="form-textarea" name="comment" placeholder="Результаты..."></textarea></div>' +
+        '</div>' +
+        '<div class="form-actions" style="justify-content:center;gap:16px">' +
+        '<button type="submit" name="resultBtn" value="ok" class="btn btn-primary" style="background:var(--success)">✓ ОК</button>' +
+        '<button type="submit" name="resultBtn" value="fail" class="btn btn-danger">✕ Брак</button>' +
+        '</div></form>' +
+        '<div id="standResult"></div>' +
+        '</div></div>';
+}
+
+async function submitVisualInspection(event) {
+    event.preventDefault();
+    var fd = new FormData(event.target);
+    var isOk = event.submitter && event.submitter.value === 'ok';
+
+    try {
+        var r = await api('/api/stands/visual-inspection', {
             method: 'POST',
-            body: { device_id, component_type, serial_number }
+            body: JSON.stringify({
+                serial_number: fd.get('serial_number'),
+                result: isOk,
+                comment: fd.get('comment')
+            })
         });
-        notify('Компонент добавлен', 'success');
-        loadComponents();
-    } catch (err) {
-        notify(err.message, 'error');
+        document.getElementById('standResult').innerHTML = '<div class="stand-result success"><h4>✅ ' + r.message + '</h4></div>';
+        event.target.reset();
+        toast(r.message, 'success');
+    } catch (e) {
+        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>❌ ' + e.message + '</h4></div>';
     }
 }
 
-async function deleteComponent(type, id) {
-    if (!confirm('Удалить компонент?')) return;
-    try {
-        await apiRequest(`/api/components/${type}/${id}`, { method: 'DELETE' });
-        notify('Компонент удалён', 'success');
-        loadComponents();
-    } catch (err) {
-        notify(err.message, 'error');
-    }
+function renderStandDiag() {
+    document.getElementById('contentArea').innerHTML =
+        '<div class="stand-form"><div class="section-card">' +
+        '<h3>⚡ Стенд диагностики</h3>' +
+        '<p style="color:var(--text-secondary);margin-bottom:20px">Плата должна пройти визуальный осмотр.</p>' +
+        '<form onsubmit="submitDiagnostics(event)">' +
+        '<div class="form-grid">' +
+        '<div class="form-group full-width"><label class="form-label">Серийный номер *</label><input class="form-input" name="serial_number" required autofocus></div>' +
+        '<div class="form-group"><label class="form-label">IP-адрес</label><input class="form-input" name="ip_address" placeholder="192.168.1.xxx"></div>' +
+        '<div class="form-group"><label class="form-label">Стенд</label><input class="form-input" name="stand_name" placeholder="Стенд Д-1"></div>' +
+        '</div>' +
+        '<div class="form-group full-width" style="margin-top:16px"><label class="form-label">Проверки</label>' +
+        '<div class="checkbox-group">' +
+        '<label class="checkbox-item"><input type="checkbox" name="ports_ok" checked> Порты</label>' +
+        '<label class="checkbox-item"><input type="checkbox" name="os_installed" checked> ОС</label>' +
+        '<label class="checkbox-item"><input type="checkbox" name="disks_ok" checked> Диски</label>' +
+        '<label class="checkbox-item"><input type="checkbox" name="memory_ok" checked> Память</label>' +
+        '</div></div>' +
+        '<div class="form-group full-width" style="margin-top:16px"><label class="form-label">Комментарий</label><textarea class="form-textarea" name="comment"></textarea></div>' +
+        '<div class="form-actions" style="justify-content:center;gap:16px">' +
+        '<button type="submit" name="resultBtn" value="ok" class="btn btn-primary" style="background:var(--success)">✓ Пройдена</button>' +
+        '<button type="submit" name="resultBtn" value="fail" class="btn btn-danger">✕ Не пройдена</button>' +
+        '</div></form>' +
+        '<div id="standResult"></div>' +
+        '</div></div>';
 }
 
-// ======== МЕСТА ПРОИЗВОДСТВА ========
-function renderProductionPlaces() {
-    const content = document.getElementById('contentArea');
-    const isAdmin = AppState.currentUser && AppState.currentUser.role === 'admin';
-
-    if (!content) return;
-
-    content.innerHTML = `
-        <div class="info-box">
-            <h3>Места производства</h3>
-            <p>Справочник цехов и площадок производства. Код места используется в серийном номере устройства.</p>
-        </div>
-
-        ${isAdmin ? `
-        <div class="search-panel">
-            <input type="text" id="newPlaceCode" placeholder="Код (2 цифры)" maxlength="10" style="max-width:150px;">
-            <input type="text" id="newPlaceName" placeholder="Название">
-            <button class="btn btn-primary" onclick="addProductionPlace()">+ Добавить</button>
-        </div>` : ''}
-
-        <div class="table-wrapper">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Код</th>
-                        <th>Название</th>
-                        <th>Кол-во устройств</th>
-                        ${isAdmin ? '<th>Действия</th>' : ''}
-                    </tr>
-                </thead>
-                <tbody>
-                    ${AppState.productionPlaces.map(p => {
-                        const count = AppState.devices.filter(d => d.place_of_production_id === p.id).length;
-                        return `<tr>
-                            <td>${p.id}</td>
-                            <td><strong>${escapeHtml(p.code)}</strong></td>
-                            <td>${escapeHtml(p.name)}</td>
-                            <td>${count}</td>
-                            ${isAdmin ? `<td>
-                                <button class="action-btn delete" onclick="deleteProductionPlace(${p.id})" title="Удалить" ${count > 0 ? 'disabled style="opacity:0.3"' : ''}>🗑</button>
-                             </td>` : ''}
-                        </tr>`;
-                    }).join('')}
-                </tbody>
-            </table>
-        </div>
-    `;
-}
-
-async function addProductionPlace() {
-    const code = document.getElementById('newPlaceCode')?.value.trim();
-    const name = document.getElementById('newPlaceName')?.value.trim();
-    if (!code || !name) return notify('Заполните все поля', 'error');
-    try {
-        await apiRequest('/api/production-places', { method: 'POST', body: { code, name } });
-        notify('Место добавлено', 'success');
-        await loadAllData();
-        renderProductionPlaces();
-    } catch (err) {
-        notify(err.message, 'error');
-    }
-}
-
-async function deleteProductionPlace(id) {
-    if (!confirm('Удалить место производства?')) return;
-    try {
-        await apiRequest(`/api/production-places/${id}`, { method: 'DELETE' });
-        notify('Место удалено', 'success');
-        await loadAllData();
-        renderProductionPlaces();
-    } catch (err) {
-        notify(err.message, 'error');
-    }
-}
-
-// ======== СТРУКТУРА СЕРИЙНОГО НОМЕРА ========
-function renderSerialStructure() {
-    const content = document.getElementById('contentArea');
-    if (!content) return;
-    
-    content.innerHTML = `
-        <div class="info-box">
-            <h3>Структура серийного номера устройства</h3>
-            <p>Серийный номер формируется по определённой схеме, каждая часть несёт информацию о типе устройства, месте и времени производства.</p>
-        </div>
-
-        <div class="detail-section">
-            <h3>Пример: RS101016430001</h3>
-            <div class="serial-structure">
-                <div class="serial-part">
-                    <div class="part-value">RS</div>
-                    <div class="part-desc">Тип<br>устройства</div>
-                </div>
-                <div class="serial-part">
-                    <div class="part-value">1</div>
-                    <div class="part-desc">Этап<br>производства</div>
-                </div>
-                <div class="serial-part">
-                    <div class="part-value">01</div>
-                    <div class="part-desc">Место<br>производства</div>
-                </div>
-                <div class="serial-part">
-                    <div class="part-value">01</div>
-                    <div class="part-desc">Год<br>производства</div>
-                </div>
-                <div class="serial-part">
-                    <div class="part-value">643</div>
-                    <div class="part-desc">Код<br>страны</div>
-                </div>
-                <div class="serial-part">
-                    <div class="part-value">0001</div>
-                    <div class="part-desc">Порядковый<br>номер</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="cards-grid">
-            <div class="card">
-                <h3>Типы устройств</h3>
-                ${AppState.deviceTypes.map(t => `<div class="detail-row"><span class="label">${t.code}</span><span class="value">${t.name}</span></div>`).join('')}
-            </div>
-            <div class="card">
-                <h3>Этапы производства</h3>
-                ${AppState.productionStages.map(s => `<div class="detail-row"><span class="label">Код ${s.code}</span><span class="value">${s.name} — ${s.description || ''}</span></div>`).join('')}
-            </div>
-            <div class="card">
-                <h3>Места производства</h3>
-                ${AppState.productionPlaces.slice(0, 8).map(p => `<div class="detail-row"><span class="label">${p.code}</span><span class="value">${p.name}</span></div>`).join('')}
-            </div>
-            <div class="card">
-                <h3>Годы производства (код)</h3>
-                ${AppState.productionYears.slice(0, 8).map(y => `<div class="detail-row"><span class="label">Код ${y.code}</span><span class="value">${y.name}</span></div>`).join('')}
-            </div>
-        </div>
-    `;
-}
-
-// ======== СТАТИСТИКА ========
-async function loadStatistics() {
-    const content = document.getElementById('contentArea');
-    if (content) {
-        content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка статистики...</p></div>';
-    }
+async function submitDiagnostics(event) {
+    event.preventDefault();
+    var fd = new FormData(event.target);
+    var isOk = event.submitter && event.submitter.value === 'ok';
 
     try {
-        AppState.statistics = await apiRequest('/api/statistics');
-        renderStatistics();
-    } catch (err) {
-        if (content) {
-            content.innerHTML = `<div class="empty-state"><h3>Ошибка</h3><p>${err.message}</p></div>`;
+        var r = await api('/api/stands/diagnostics', {
+            method: 'POST',
+            body: JSON.stringify({
+                serial_number: fd.get('serial_number'),
+                result: isOk,
+                comment: fd.get('comment'),
+                ip_address: fd.get('ip_address'),
+                stand_name: fd.get('stand_name'),
+                ports_ok: fd.has('ports_ok'),
+                os_installed: fd.has('os_installed'),
+                disks_ok: fd.has('disks_ok'),
+                memory_ok: fd.has('memory_ok')
+            })
+        });
+        document.getElementById('standResult').innerHTML = '<div class="stand-result success"><h4>✅ ' + r.message + '</h4></div>';
+        event.target.reset();
+        toast(r.message, 'success');
+    } catch (e) {
+        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>❌ ' + e.message + '</h4></div>';
+    }
+}
+
+function renderStandAssembly() {
+    document.getElementById('contentArea').innerHTML =
+        '<div class="stand-form"><div class="section-card">' +
+        '<h3>🔧 Стенд сборки</h3>' +
+        '<p style="color:var(--text-secondary);margin-bottom:20px">Все платы должны пройти диагностику.</p>' +
+        '<form onsubmit="submitAssembly(event)">' +
+        '<div class="form-grid">' +
+        '<div class="form-group full-width"><label class="form-label">Серийный № изделия *</label><input class="form-input" name="device_serial_number" required placeholder="RS501175220XXX"></div>' +
+        '<div class="form-group full-width"><label class="form-label">Серийный № корпуса *</label><input class="form-input" name="case_serial_number" required placeholder="CASE-RS-2024-XXX"></div>' +
+        '<div class="form-group"><label class="form-label">Тип</label><select class="form-select" name="device_type_id"><option value="1">RS</option><option value="2">SA</option></select></div>' +
+        '</div>' +
+        '<div class="form-group full-width" style="margin-top:16px">' +
+        '<label class="form-label">Серийные номера плат (по строкам) *</label>' +
+        '<textarea class="form-textarea" name="board_serials" required placeholder="MB-RS-2024-010&#10;PB-RS-2024-010" style="min-height:120px"></textarea>' +
+        '</div>' +
+        '<div class="form-actions" style="justify-content:center">' +
+        '<button type="submit" class="btn btn-primary">🔧 Собрать</button>' +
+        '</div></form>' +
+        '<div id="standResult"></div>' +
+        '</div></div>';
+}
+
+async function submitAssembly(event) {
+    event.preventDefault();
+    var fd = new FormData(event.target);
+    var serials = fd.get('board_serials').split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+
+    if (!serials.length) { toast('Введите серийные номера', 'warning'); return; }
+
+    try {
+        var r = await api('/api/stands/assembly', {
+            method: 'POST',
+            body: JSON.stringify({
+                board_serial_numbers: serials,
+                case_serial_number: fd.get('case_serial_number'),
+                device_serial_number: fd.get('device_serial_number'),
+                device_type_id: fd.get('device_type_id')
+            })
+        });
+        document.getElementById('standResult').innerHTML = '<div class="stand-result success"><h4>✅ ' + r.message + '</h4><p>ID: ' + r.device_id + '</p></div>';
+        event.target.reset();
+        toast(r.message, 'success');
+    } catch (e) {
+        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>❌ ' + e.message + '</h4></div>';
+    }
+}
+
+function renderStandPSI() {
+    document.getElementById('contentArea').innerHTML =
+        '<div class="stand-form"><div class="section-card">' +
+        '<h3>🧪 Стенд ПСИ</h3>' +
+        '<p style="color:var(--text-secondary);margin-bottom:20px">Устройство должно пройти сборку.</p>' +
+        '<form onsubmit="submitPSI(event)">' +
+        '<div class="form-grid">' +
+        '<div class="form-group full-width"><label class="form-label">Серийный № изделия *</label><input class="form-input" name="device_serial_number" required autofocus></div>' +
+        '<div class="form-group"><label class="form-label">Протокол *</label><input class="form-input" name="protocol_number" required placeholder="PSI-2024-XXX"></div>' +
+        '<div class="form-group"><label class="form-label">Прошивка *</label><input class="form-input" name="firmware_version" required placeholder="router_6.4"></div>' +
+        '</div>' +
+        '<div class="form-group full-width" style="margin-top:16px"><label class="form-label">Проверки</label>' +
+        '<div class="checkbox-group">' +
+        '<label class="checkbox-item"><input type="checkbox" name="ports_ok" checked> Порты</label>' +
+        '<label class="checkbox-item"><input type="checkbox" name="os_installed" checked> ОС</label>' +
+        '<label class="checkbox-item"><input type="checkbox" name="disks_ok" checked> Диски</label>' +
+        '<label class="checkbox-item"><input type="checkbox" name="memory_ok" checked> Память</label>' +
+        '</div></div>' +
+        '<div class="form-group full-width" style="margin-top:16px"><label class="form-label">Комментарий</label><textarea class="form-textarea" name="comment"></textarea></div>' +
+        '<div class="form-actions" style="justify-content:center;gap:16px">' +
+        '<button type="submit" name="resultBtn" value="ok" class="btn btn-primary" style="background:var(--success)">✓ ПСИ пройден</button>' +
+        '<button type="submit" name="resultBtn" value="fail" class="btn btn-danger">✕ Не пройден</button>' +
+        '</div></form>' +
+        '<div id="standResult"></div>' +
+        '</div></div>';
+}
+
+async function submitPSI(event) {
+    event.preventDefault();
+    var fd = new FormData(event.target);
+    var isOk = event.submitter && event.submitter.value === 'ok';
+
+    try {
+        var r = await api('/api/stands/psi', {
+            method: 'POST',
+            body: JSON.stringify({
+                device_serial_number: fd.get('device_serial_number'),
+                result: isOk,
+                comment: fd.get('comment'),
+                protocol_number: fd.get('protocol_number'),
+                firmware_version: fd.get('firmware_version'),
+                ports_ok: fd.has('ports_ok'),
+                os_installed: fd.has('os_installed'),
+                disks_ok: fd.has('disks_ok'),
+                memory_ok: fd.has('memory_ok')
+            })
+        });
+        document.getElementById('standResult').innerHTML = '<div class="stand-result success"><h4>✅ ' + r.message + '</h4></div>';
+        event.target.reset();
+        toast(r.message, 'success');
+    } catch (e) {
+        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>❌ ' + e.message + '</h4></div>';
+    }
+}
+
+function renderStandPackaging() {
+    document.getElementById('contentArea').innerHTML =
+        '<div class="stand-form"><div class="section-card">' +
+        '<h3>📦 Стенд упаковки</h3>' +
+        '<p style="color:var(--text-secondary);margin-bottom:20px">Устройство должно пройти ПСИ. Печать паспорта и этикетки.</p>' +
+        '<form onsubmit="submitPackaging(event)">' +
+        '<div class="form-grid">' +
+        '<div class="form-group full-width"><label class="form-label">Серийный № изделия *</label><input class="form-input" name="device_serial_number" required autofocus></div>' +
+        '<div class="form-group full-width"><label class="form-label">Комментарий</label><textarea class="form-textarea" name="comment"></textarea></div>' +
+        '</div>' +
+        '<div class="form-actions" style="justify-content:center">' +
+        '<button type="submit" class="btn btn-primary">📦 Упаковать</button>' +
+        '</div></form>' +
+        '<div id="standResult"></div>' +
+        '</div></div>';
+}
+
+async function submitPackaging(event) {
+    event.preventDefault();
+    var fd = new FormData(event.target);
+
+    try {
+        var r = await api('/api/stands/packaging', {
+            method: 'POST',
+            body: JSON.stringify({
+                device_serial_number: fd.get('device_serial_number'),
+                comment: fd.get('comment')
+            })
+        });
+        var dateStr = r.passport && r.passport.date ? new Date(r.passport.date).toLocaleString('ru') : '';
+        document.getElementById('standResult').innerHTML =
+            '<div class="stand-result success">' +
+            '<h4>✅ ' + r.message + '</h4>' +
+            '<p style="margin-top:12px">📄 Паспорт: ' + (r.passport ? r.passport.serial_number : '') + '</p>' +
+            '<p>🏷️ Этикетка: ' + (r.label ? r.label.serial_number : '') + '</p>' +
+            '<p style="font-size:12px;color:var(--text-muted);margin-top:8px">' + dateStr + '</p>' +
+            '</div>';
+        event.target.reset();
+        toast(r.message, 'success');
+    } catch (e) {
+        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>❌ ' + e.message + '</h4></div>';
+    }
+}
+
+// ============ REFERENCES ============
+
+async function loadDeviceTypes() {
+    var content = document.getElementById('contentArea');
+    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+
+    try {
+        var types = await api('/api/device-types');
+        S.deviceTypes = types || [];
+        var isAdmin = S.user && S.user.role === 'admin';
+
+        var html = '<div class="action-panel">';
+        if (isAdmin) html += '<button class="btn btn-primary" onclick="showAddType()">+ Добавить</button>';
+        html += '</div>';
+
+        html += '<div class="table-card"><div class="table-wrapper"><table class="data-table"><thead><tr><th>Код</th><th>Название</th>';
+        if (isAdmin) html += '<th>Действия</th>';
+        html += '</tr></thead><tbody>';
+
+        for (var i = 0; i < S.deviceTypes.length; i++) {
+            var t = S.deviceTypes[i];
+            html += '<tr><td><span class="badge badge-info">' + t.code + '</span></td><td>' + t.name + '</td>';
+            if (isAdmin) html += '<td><button class="btn-icon danger" onclick="deleteType(' + t.id + ')">✕</button></td>';
+            html += '</tr>';
         }
+
+        html += '</tbody></table></div></div>';
+        content.innerHTML = html;
+    } catch (e) {
+        content.innerHTML = '<div class="empty-state"><p>Ошибка</p></div>';
     }
 }
 
-function renderStatistics() {
-    const stats = AppState.statistics;
-    const content = document.getElementById('contentArea');
-    if (!content || !stats) return;
-
-    const maxByType = Math.max(...stats.byType.map(t => t.count), 1);
-    const maxByLocation = Math.max(...stats.byLocation.map(l => l.count), 1);
-    const maxByPlace = Math.max(...stats.byPlace.map(p => p.count), 1);
-
-    content.innerHTML = `
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon">📱</div>
-                <div class="stat-label">Всего устройств</div>
-                <div class="stat-value">${stats.totalDevices}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">👥</div>
-                <div class="stat-label">Сотрудников</div>
-                <div class="stat-value">${stats.totalEmployees}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">⚠️</div>
-                <div class="stat-label">Ошибок</div>
-                <div class="stat-value">${stats.totalErrors}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">🔧</div>
-                <div class="stat-label">Ремонтов</div>
-                <div class="stat-value">${stats.totalRepairs}</div>
-            </div>
-        </div>
-
-        <div class="chart-container">
-            <h3>По типам устройств</h3>
-            ${stats.byType.map(t => `
-                <div class="chart-bar">
-                    <span class="chart-bar-label">${t.name} (${t.code})</span>
-                    <div class="chart-bar-fill" style="width: ${(t.count / maxByType) * 100}%">${t.count}</div>
-                </div>
-            `).join('')}
-        </div>
-
-        <div class="chart-container">
-            <h3>По местоположению</h3>
-            ${stats.byLocation.map(l => `
-                <div class="chart-bar">
-                    <span class="chart-bar-label">${l.name}</span>
-                    <div class="chart-bar-fill" style="width: ${(l.count / maxByLocation) * 100}%">${l.count}</div>
-                </div>
-            `).join('')}
-        </div>
-
-        <div class="chart-container">
-            <h3>По месту производства</h3>
-            ${stats.byPlace.map(p => `
-                <div class="chart-bar">
-                    <span class="chart-bar-label">${p.name}</span>
-                    <div class="chart-bar-fill" style="width: ${(p.count / maxByPlace) * 100}%">${p.count}</div>
-                </div>
-            `).join('')}
-        </div>
-
-        <div class="chart-container">
-            <h3>Последние добавленные устройства</h3>
-            <div class="table-wrapper" style="border:none;box-shadow:none;">
-                <table class="data-table">
-                    <thead>
-                        <tr><th>Серийный номер</th><th>Тип</th><th>Модификация</th><th>Дата</th></tr>
-                    </thead>
-                    <tbody>
-                        ${stats.recentDevices.map(d => `
-                            <tr>
-                                <td><strong>${escapeHtml(d.product_serial_number)}</strong></td>
-                                <td>${escapeHtml(d.device_type_name)}</td>
-                                <td>${escapeHtml(d.type)}</td>
-                                <td>${escapeHtml(d.manufactures_date)}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    `;
+function showAddType() {
+    openModal('Новый тип',
+        '<form onsubmit="saveType(event)"><div class="form-grid">' +
+        '<div class="form-group"><label class="form-label">Код *</label><input class="form-input" name="code" required maxlength="10"></div>' +
+        '<div class="form-group"><label class="form-label">Название *</label><input class="form-input" name="name" required></div>' +
+        '</div><div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button><button type="submit" class="btn btn-primary">Создать</button></div></form>'
+    );
 }
 
-// ======== ПРОФИЛЬ ========
-function renderProfile() {
-    const user = AppState.currentUser;
-    const content = document.getElementById('contentArea');
-    const roleNames = { admin: 'Администратор', user: 'Пользователь', operator: 'Оператор' };
-
-    if (!content) return;
-
-    content.innerHTML = `
-        <div class="info-box" style="max-width:600px;">
-            <h3>Профиль пользователя</h3>
-            <div style="margin-top:16px;">
-                <div class="detail-row"><span class="label">ФИО</span><span class="value">${escapeHtml(user.lastName)} ${escapeHtml(user.firstName)} ${escapeHtml(user.middleName || '')}</span></div>
-                <div class="detail-row"><span class="label">Должность</span><span class="value">${escapeHtml(user.position)}</span></div>
-                <div class="detail-row"><span class="label">Логин</span><span class="value">${escapeHtml(user.username)}</span></div>
-                <div class="detail-row"><span class="label">Роль</span><span class="value"><span class="status-badge success">${roleNames[user.role] || user.role}</span></span></div>
-            </div>
-        </div>
-    `;
+async function saveType(e) {
+    e.preventDefault();
+    var fd = new FormData(e.target);
+    try {
+        await api('/api/device-types', { method: 'POST', body: JSON.stringify({ name: fd.get('name'), code: fd.get('code') }) });
+        toast('Добавлено', 'success');
+        closeModal();
+        loadDeviceTypes();
+    } catch (err) { toast(err.message, 'error'); }
 }
 
-// ======== СОТРУДНИКИ ========
+async function deleteType(id) {
+    if (!confirm('Удалить?')) return;
+    try { await api('/api/device-types/' + id, { method: 'DELETE' }); toast('Удалено', 'success'); loadDeviceTypes(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function loadProductionPlaces() {
+    var content = document.getElementById('contentArea');
+    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+
+    try {
+        var places = await api('/api/production-places');
+        S.productionPlaces = places || [];
+        var isAdmin = S.user && S.user.role === 'admin';
+
+        var html = '<div class="action-panel">';
+        if (isAdmin) html += '<button class="btn btn-primary" onclick="showAddPlace()">+ Добавить</button>';
+        html += '</div>';
+
+        html += '<div class="table-card"><div class="table-wrapper"><table class="data-table"><thead><tr><th>Код</th><th>Название</th>';
+        if (isAdmin) html += '<th>Действия</th>';
+        html += '</tr></thead><tbody>';
+
+        for (var i = 0; i < S.productionPlaces.length; i++) {
+            var p = S.productionPlaces[i];
+            html += '<tr><td><span class="badge badge-neutral">' + p.code + '</span></td><td>' + p.name + '</td>';
+            if (isAdmin) html += '<td><button class="btn-icon danger" onclick="deletePlace(' + p.id + ')">✕</button></td>';
+            html += '</tr>';
+        }
+
+        html += '</tbody></table></div></div>';
+        content.innerHTML = html;
+    } catch (e) {
+        content.innerHTML = '<div class="empty-state"><p>Ошибка</p></div>';
+    }
+}
+
+function showAddPlace() {
+    openModal('Новое место',
+        '<form onsubmit="savePlace(event)"><div class="form-grid">' +
+        '<div class="form-group"><label class="form-label">Код *</label><input class="form-input" name="code" required></div>' +
+        '<div class="form-group"><label class="form-label">Название *</label><input class="form-input" name="name" required></div>' +
+        '</div><div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button><button type="submit" class="btn btn-primary">Создать</button></div></form>'
+    );
+}
+
+async function savePlace(e) {
+    e.preventDefault();
+    var fd = new FormData(e.target);
+    try {
+        await api('/api/production-places', { method: 'POST', body: JSON.stringify({ name: fd.get('name'), code: fd.get('code') }) });
+        toast('Добавлено', 'success');
+        closeModal();
+        loadProductionPlaces();
+    } catch (err) { toast(err.message, 'error'); }
+}
+
+async function deletePlace(id) {
+    if (!confirm('Удалить?')) return;
+    try { await api('/api/production-places/' + id, { method: 'DELETE' }); toast('Удалено', 'success'); loadProductionPlaces(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+function renderSerialStructure() {
+    document.getElementById('contentArea').innerHTML =
+        '<div class="section-card"><h3>🔢 Формат серийного номера</h3>' +
+        '<p style="color:var(--text-secondary);margin-bottom:24px">Пример: <strong>RS501175220001</strong></p>' +
+        '<div style="text-align:center;margin-bottom:40px"><div class="serial-structure">' +
+        '<div class="serial-segment seg-type" data-label="Тип">RS</div>' +
+        '<div class="serial-segment seg-stage" data-label="Этап">5</div>' +
+        '<div class="serial-segment seg-place" data-label="Место">01</div>' +
+        '<div class="serial-segment seg-prod" data-label="Код">17</div>' +
+        '<div class="serial-segment seg-year" data-label="Год">52</div>' +
+        '<div class="serial-segment seg-month" data-label="Месяц">20</div>' +
+        '<div class="serial-segment seg-seq" data-label="Посл.">001</div>' +
+        '</div></div></div>' +
+        '<div class="detail-grid">' +
+        '<div class="section-card"><h3>📋 Тип</h3><div class="detail-row"><span class="detail-label">RS</span><span class="detail-value">Маршрутизатор</span></div><div class="detail-row"><span class="detail-label">SA</span><span class="detail-value">Коммутатор</span></div></div>' +
+        '<div class="section-card"><h3>🏭 Этап</h3><div class="detail-row"><span class="detail-label">1-2</span><span class="detail-value">Опытный образец</span></div><div class="detail-row"><span class="detail-label">3-4</span><span class="detail-value">Отладка</span></div><div class="detail-row"><span class="detail-label">5</span><span class="detail-value">Серийное</span></div></div>' +
+        '</div>';
+}
+
+// ============ STATISTICS ============
+async function loadStatistics() {
+    var content = document.getElementById('contentArea');
+    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+
+    try {
+        var s = await api('/api/statistics');
+        if (!s) return;
+
+        var stageLabelsMap = { 'new': 'Новое', 'visual_ok': 'Осмотр', 'diagnostics_ok': 'Диагн.', 'assembled': 'Собрано', 'psi_ok': 'ПСИ', 'packaged': 'Упаковано' };
+
+        var html = '<div class="stats-grid">';
+        html += '<div class="stat-card"><div class="stat-icon blue">📦</div><div class="stat-info"><span class="stat-value">' + s.totalDevices + '</span><span class="stat-label">Устройств</span></div></div>';
+        html += '<div class="stat-card"><div class="stat-icon green">🔲</div><div class="stat-info"><span class="stat-value">' + s.totalBoards + '</span><span class="stat-label">Плат</span></div></div>';
+        html += '<div class="stat-card"><div class="stat-icon purple">👥</div><div class="stat-info"><span class="stat-value">' + s.totalEmployees + '</span><span class="stat-label">Сотрудников</span></div></div>';
+        html += '</div>';
+
+        html += '<div class="chart-grid">';
+
+        // By type
+        if (s.byType && s.byType.length) {
+            var maxT = 1;
+            for (var i = 0; i < s.byType.length; i++) { if (s.byType[i].count > maxT) maxT = s.byType[i].count; }
+            html += '<div class="chart-card"><h4>По типу</h4><div class="bar-chart">';
+            for (var i = 0; i < s.byType.length; i++) {
+                var t = s.byType[i];
+                html += '<div class="bar-item"><span class="bar-label">' + t.name + '</span><div class="bar-track"><div class="bar-fill" style="width:' + (t.count / maxT * 100) + '%"></div></div><span class="bar-value">' + t.count + '</span></div>';
+            }
+            html += '</div></div>';
+        }
+
+        // Device stages
+        if (s.byStage && s.byStage.length) {
+            var maxDS = 1;
+            for (var i = 0; i < s.byStage.length; i++) { if (s.byStage[i].count > maxDS) maxDS = s.byStage[i].count; }
+            html += '<div class="chart-card"><h4>Устройства по стадии</h4><div class="bar-chart">';
+            for (var i = 0; i < s.byStage.length; i++) {
+                var x = s.byStage[i];
+                html += '<div class="bar-item"><span class="bar-label">' + (stageLabelsMap[x.current_stage] || x.current_stage) + '</span><div class="bar-track"><div class="bar-fill" style="width:' + (x.count / maxDS * 100) + '%"></div></div><span class="bar-value">' + x.count + '</span></div>';
+            }
+            html += '</div></div>';
+        }
+
+        // Board stages
+        if (s.boardsByStage && s.boardsByStage.length) {
+            var maxBS = 1;
+            for (var i = 0; i < s.boardsByStage.length; i++) { if (s.boardsByStage[i].count > maxBS) maxBS = s.boardsByStage[i].count; }
+            html += '<div class="chart-card"><h4>Платы по стадии</h4><div class="bar-chart">';
+            for (var i = 0; i < s.boardsByStage.length; i++) {
+                var x = s.boardsByStage[i];
+                html += '<div class="bar-item"><span class="bar-label">' + (stageLabelsMap[x.current_stage] || x.current_stage) + '</span><div class="bar-track"><div class="bar-fill" style="width:' + (x.count / maxBS * 100) + '%"></div></div><span class="bar-value">' + x.count + '</span></div>';
+            }
+            html += '</div></div>';
+        }
+
+        // Recent
+        if (s.recentDevices && s.recentDevices.length) {
+            html += '<div class="chart-card"><h4>Последние устройства</h4><div class="recent-list">';
+            for (var i = 0; i < s.recentDevices.length; i++) {
+                var d = s.recentDevices[i];
+                html += '<div class="recent-item"><div class="recent-item-icon">📦</div><div class="recent-item-info"><div class="recent-item-title">' + (d.product_serial_number || '—') + '</div><div class="recent-item-sub">' + (d.dtn || '') + ' • ' + (stageLabelsMap[d.current_stage] || d.current_stage || '') + '</div></div></div>';
+            }
+            html += '</div></div>';
+        }
+
+        html += '</div>';
+        content.innerHTML = html;
+    } catch (e) {
+        content.innerHTML = '<div class="empty-state"><p>Ошибка</p></div>';
+    }
+}
+
+// ============ EMPLOYEES ============
 async function loadEmployees() {
-    if (!AppState.currentUser || AppState.currentUser.role !== 'admin') {
-        const content = document.getElementById('contentArea');
-        if (content) content.innerHTML = '<div class="empty-state"><h3>Доступ запрещен</h3></div>';
+    if (!S.user || S.user.role !== 'admin') {
+        document.getElementById('contentArea').innerHTML = '<div class="empty-state"><p>Недостаточно прав</p></div>';
         return;
     }
 
-    const content = document.getElementById('contentArea');
-    if (content) {
-        content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка...</p></div>';
-    }
+    var content = document.getElementById('contentArea');
+    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
 
     try {
-        AppState.employees = await apiRequest('/api/employees');
-        renderEmployees();
-    } catch (err) {
-        if (content) {
-            content.innerHTML = `<div class="empty-state"><h3>Ошибка</h3><p>${err.message}</p></div>`;
+        var emps = await api('/api/employees');
+        S.employees = emps || [];
+
+        var roleLabels = { admin: 'Админ', user: 'Пользователь', operator: 'Оператор' };
+        var roleBadges = { admin: 'badge-error', user: 'badge-info', operator: 'badge-warning' };
+
+        var html = '<div class="action-panel"><button class="btn btn-primary" onclick="showAddEmp()">+ Добавить</button></div>';
+        html += '<div class="table-card"><div class="table-wrapper"><table class="data-table"><thead><tr><th>ФИО</th><th>Должность</th><th>Логин</th><th>Роль</th><th>Действия</th></tr></thead><tbody>';
+
+        for (var i = 0; i < S.employees.length; i++) {
+            var e = S.employees[i];
+            html += '<tr>';
+            html += '<td><strong>' + e.last_name + ' ' + e.first_name + ' ' + (e.middle_name || '') + '</strong></td>';
+            html += '<td>' + e.position + '</td>';
+            html += '<td><code style="background:var(--bg-input);padding:2px 8px;border-radius:4px">' + e.username + '</code></td>';
+            html += '<td><span class="badge ' + (roleBadges[e.role] || 'badge-neutral') + '">' + (roleLabels[e.role] || e.role) + '</span></td>';
+            html += '<td><div class="cell-actions">';
+            html += '<button class="btn-icon" onclick="showEditEmp(' + e.id + ')">✎</button>';
+            html += '<button class="btn-icon danger" onclick="deleteEmp(' + e.id + ')">✕</button>';
+            html += '</div></td></tr>';
         }
+
+        html += '</tbody></table></div></div>';
+        content.innerHTML = html;
+    } catch (e) {
+        content.innerHTML = '<div class="empty-state"><p>Ошибка</p></div>';
     }
 }
 
-function renderEmployees() {
-    const content = document.getElementById('contentArea');
-    const roleNames = { admin: 'Администратор', user: 'Пользователь', operator: 'Оператор' };
+function showAddEmp(data) {
+    var e = data || {};
+    var title = e.id ? 'Редактировать' : 'Новый сотрудник';
 
-    if (!content) return;
+    var html = '<form onsubmit="saveEmp(event,' + (e.id || 'null') + ')"><div class="form-grid">';
+    html += '<div class="form-group"><label class="form-label">Фамилия *</label><input class="form-input" name="last_name" value="' + (e.last_name || '') + '" required></div>';
+    html += '<div class="form-group"><label class="form-label">Имя *</label><input class="form-input" name="first_name" value="' + (e.first_name || '') + '" required></div>';
+    html += '<div class="form-group"><label class="form-label">Отчество</label><input class="form-input" name="middle_name" value="' + (e.middle_name || '') + '"></div>';
+    html += '<div class="form-group"><label class="form-label">Должность *</label><input class="form-input" name="position" value="' + (e.position || '') + '" required></div>';
+    html += '<div class="form-group"><label class="form-label">Логин *</label><input class="form-input" name="username" value="' + (e.username || '') + '" required></div>';
+    html += '<div class="form-group"><label class="form-label">' + (e.id ? 'Новый пароль' : 'Пароль *') + '</label><input class="form-input" type="password" name="password" ' + (e.id ? '' : 'required') + '></div>';
+    html += '<div class="form-group"><label class="form-label">Роль</label><select class="form-select" name="role">';
+    html += '<option value="user"' + (e.role === 'user' ? ' selected' : '') + '>Пользователь</option>';
+    html += '<option value="admin"' + (e.role === 'admin' ? ' selected' : '') + '>Админ</option>';
+    html += '<option value="operator"' + (e.role === 'operator' ? ' selected' : '') + '>Оператор</option>';
+    html += '</select></div>';
+    html += '</div><div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button><button type="submit" class="btn btn-primary">' + (e.id ? 'Сохранить' : 'Создать') + '</button></div></form>';
 
-    content.innerHTML = `
-        <div class="search-panel">
-            <input type="text" placeholder="Поиск сотрудников..." oninput="filterEmployees(this.value)">
-            <button class="btn btn-primary" onclick="addEmployee()">+ Добавить сотрудника</button>
-        </div>
-
-        <div class="table-wrapper">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>ФИО</th>
-                        <th>Должность</th>
-                        <th>Логин</th>
-                        <th>Роль</th>
-                        <th>Действия</th>
-                    </tr>
-                </thead>
-                <tbody id="employeesTableBody">
-                    ${AppState.employees.map(e => `
-                        <tr>
-                            <td>${e.id}</td>
-                            <td>${escapeHtml(e.last_name)} ${escapeHtml(e.first_name)} ${escapeHtml(e.middle_name || '')}</td>
-                            <td>${escapeHtml(e.position)}</td>
-                            <td><code>${escapeHtml(e.username)}</code></td>
-                            <td><span class="status-badge ${e.role === 'admin' ? 'danger' : e.role === 'operator' ? 'warning' : 'success'}">${roleNames[e.role] || e.role}</span></td>
-                            <td>
-                                <div class="action-buttons">
-                                    <button class="action-btn edit" onclick="editEmployee(${e.id})" title="Редактировать">✏️</button>
-                                    <button class="action-btn delete" onclick="deleteEmployee(${e.id})" title="Удалить">🗑</button>
-                                </div>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
-    `;
+    openModal(title, html);
 }
 
-function filterEmployees(query) {
-    const tbody = document.getElementById('employeesTableBody');
-    if (!tbody) return;
-    const q = query.toLowerCase();
-    const roleNames = { admin: 'Администратор', user: 'Пользователь', operator: 'Оператор' };
-
-    const filtered = AppState.employees.filter(e =>
-        `${e.last_name} ${e.first_name} ${e.middle_name || ''} ${e.position} ${e.username}`.toLowerCase().includes(q)
-    );
-
-    tbody.innerHTML = filtered.map(e => `
-        <tr>
-            <td>${e.id}</td>
-            <td>${escapeHtml(e.last_name)} ${escapeHtml(e.first_name)} ${escapeHtml(e.middle_name || '')}</td>
-            <td>${escapeHtml(e.position)}</td>
-            <td><code>${escapeHtml(e.username)}</code></td>
-            <td><span class="status-badge ${e.role === 'admin' ? 'danger' : e.role === 'operator' ? 'warning' : 'success'}">${roleNames[e.role] || e.role}</span></td>
-            <td>
-                <div class="action-buttons">
-                    <button class="action-btn edit" onclick="editEmployee(${e.id})" title="Редактировать">✏️</button>
-                    <button class="action-btn delete" onclick="deleteEmployee(${e.id})" title="Удалить">🗑</button>
-                </div>
-            </td>
-        </tr>
-    `).join('');
+async function showEditEmp(id) {
+    try {
+        var e = await api('/api/employees/' + id);
+        if (e) showAddEmp(e);
+    } catch (err) { toast(err.message, 'error'); }
 }
 
-function addEmployee() {
-    const modalTitle = document.getElementById('modalTitle');
-    const modalBody = document.getElementById('modalBody');
-    
-    if (modalTitle) modalTitle.textContent = 'Добавить сотрудника';
-    if (modalBody) modalBody.innerHTML = renderEmployeeForm();
-    
-    const modalOverlay = document.getElementById('modalOverlay');
-    if (modalOverlay) modalOverlay.style.display = 'flex';
-}
-
-function editEmployee(id) {
-    const emp = AppState.employees.find(e => e.id === id);
-    if (!emp) return;
-    
-    const modalTitle = document.getElementById('modalTitle');
-    const modalBody = document.getElementById('modalBody');
-    
-    if (modalTitle) modalTitle.textContent = 'Редактировать сотрудника';
-    if (modalBody) modalBody.innerHTML = renderEmployeeForm(emp);
-    
-    const modalOverlay = document.getElementById('modalOverlay');
-    if (modalOverlay) modalOverlay.style.display = 'flex';
-}
-
-function renderEmployeeForm(emp = null) {
-    return `
-        <form onsubmit="saveEmployee(event, ${emp ? emp.id : 'null'})">
-            <div class="form-grid">
-                <div class="form-group">
-                    <label>Фамилия *</label>
-                    <input type="text" name="last_name" value="${emp?.last_name || ''}" required>
-                </div>
-                <div class="form-group">
-                    <label>Имя *</label>
-                    <input type="text" name="first_name" value="${emp?.first_name || ''}" required>
-                </div>
-                <div class="form-group">
-                    <label>Отчество</label>
-                    <input type="text" name="middle_name" value="${emp?.middle_name || ''}">
-                </div>
-                <div class="form-group">
-                    <label>Должность *</label>
-                    <input type="text" name="position" value="${emp?.position || ''}" required>
-                </div>
-                <div class="form-group">
-                    <label>Логин *</label>
-                    <input type="text" name="username" value="${emp?.username || ''}" required>
-                </div>
-                <div class="form-group">
-                    <label>${emp ? 'Новый пароль (оставьте пустым)' : 'Пароль *'}</label>
-                    <input type="password" name="password" ${emp ? '' : 'required'}>
-                </div>
-                <div class="form-group">
-                    <label>Роль</label>
-                    <select name="role">
-                        <option value="user" ${emp?.role === 'user' ? 'selected' : ''}>Пользователь</option>
-                        <option value="operator" ${emp?.role === 'operator' ? 'selected' : ''}>Оператор</option>
-                        <option value="admin" ${emp?.role === 'admin' ? 'selected' : ''}>Администратор</option>
-                    </select>
-                </div>
-            </div>
-            <div class="form-actions">
-                <button type="button" class="btn btn-outline" onclick="closeModalForce()">Отмена</button>
-                <button type="submit" class="btn btn-primary">${emp ? 'Сохранить' : 'Добавить'}</button>
-            </div>
-        </form>
-    `;
-}
-
-async function saveEmployee(event, id) {
+async function saveEmp(event, id) {
     event.preventDefault();
-    const form = event.target;
-    const formData = new FormData(form);
-    const data = {};
-    formData.forEach((val, key) => { data[key] = val; });
+    var fd = new FormData(event.target);
+    var data = {};
+    fd.forEach(function (v, k) { data[k] = v; });
+    if (!data.password) delete data.password;
 
     try {
         if (id) {
-            if (!data.password) delete data.password;
-            await apiRequest(`/api/employees/${id}`, { method: 'PUT', body: data });
-            notify('Сотрудник обновлён', 'success');
+            await api('/api/employees/' + id, { method: 'PUT', body: JSON.stringify(data) });
+            toast('Обновлено', 'success');
         } else {
-            await apiRequest('/api/employees', { method: 'POST', body: data });
-            notify('Сотрудник добавлен', 'success');
+            await api('/api/employees', { method: 'POST', body: JSON.stringify(data) });
+            toast('Создано', 'success');
         }
-        closeModalForce();
+        closeModal();
         loadEmployees();
-    } catch (err) {
-        notify(err.message, 'error');
-    }
+    } catch (e) { toast(e.message, 'error'); }
 }
 
-async function deleteEmployee(id) {
-    if (!confirm('Удалить сотрудника?')) return;
-    try {
-        await apiRequest(`/api/employees/${id}`, { method: 'DELETE' });
-        notify('Сотрудник удалён', 'success');
-        loadEmployees();
-    } catch (err) {
-        notify(err.message, 'error');
-    }
+async function deleteEmp(id) {
+    if (!confirm('Удалить?')) return;
+    try { await api('/api/employees/' + id, { method: 'DELETE' }); toast('Удалено', 'success'); loadEmployees(); }
+    catch (e) { toast(e.message, 'error'); }
 }
 
-// ======== О ПРОГРАММЕ ========
-function renderAbout() {
-    const content = document.getElementById('contentArea');
-    if (!content) return;
-    
-    content.innerHTML = `
-        <div class="info-box" style="max-width:800px;">
-            <h3>О программе</h3>
-            <p><strong>Система управления производством</strong></p>
-            <p>АО «НПП «Исток» им. Шокина, г. Фрязино</p>
-            <br>
-            <p>Система предназначена для учета устройств, комплектующих, сотрудников и отслеживания производственных этапов выпуска сервисных маршрутизаторов и коммутаторов доступа.</p>
-            <br>
-            <p><strong>Версия:</strong> 1.0.0</p>
-            <p><strong>Технологии:</strong> Node.js, Express, MySQL, HTML5/CSS3/JavaScript</p>
-            <p><strong>Год:</strong> 2024</p>
-        </div>
-    `;
-}
+// ============ PROFILE ============
+function renderProfile() {
+    if (!S.user) return;
+    var u = S.user;
+    var roleMap = { admin: 'Администратор', user: 'Пользователь', operator: 'Оператор' };
+    var roleBadges = { admin: 'badge-error', user: 'badge-info', operator: 'badge-warning' };
+    var initials = (u.first_name?.[0] || '') + (u.last_name?.[0] || '');
 
-// ======== НАСТРОЙКИ ========
-function renderSettings() {
-    const content = document.getElementById('contentArea');
-    if (!content) return;
-    
-    content.innerHTML = `
-        <div class="info-box" style="max-width:600px;">
-            <h3>Настройки</h3>
-            <div style="margin-top:20px;">
-                <div class="form-group">
-                    <label>Тема оформления</label>
-                    <select onchange="AppState.currentTheme = this.value; localStorage.setItem('theme', this.value); applyTheme();" style="padding:10px;border:1px solid var(--border-medium);border-radius:8px;background:var(--bg-main);color:var(--text-primary);">
-                        <option value="light" ${AppState.currentTheme === 'light' ? 'selected' : ''}>Светлая</option>
-                        <option value="dark" ${AppState.currentTheme === 'dark' ? 'selected' : ''}>Тёмная</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-    `;
+    document.getElementById('contentArea').innerHTML =
+        '<div class="profile-card section-card"><div class="profile-header">' +
+        '<div class="profile-avatar-lg">' + initials.toUpperCase() + '</div>' +
+        '<div class="profile-name">' + u.last_name + ' ' + u.first_name + ' ' + (u.middle_name || '') + '</div>' +
+        '<div class="profile-position">' + u.position + '</div>' +
+        '<span class="badge ' + (roleBadges[u.role] || '') + '" style="margin-top:8px">' + (roleMap[u.role] || u.role) + '</span>' +
+        '</div><div style="padding:0 24px 24px">' +
+        '<div class="detail-row"><span class="detail-label">Логин</span><span class="detail-value">' + u.username + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">ID</span><span class="detail-value">' + u.id + '</span></div>' +
+        '</div></div>';
 }
-
-// ======== МОДАЛЬНОЕ ОКНО ========
-function closeModal(event) {
-    const modalOverlay = document.getElementById('modalOverlay');
-    if (event && event.target === modalOverlay) {
-        if (modalOverlay) modalOverlay.style.display = 'none';
-    }
-}
-
-function closeModalForce() {
-    const modalOverlay = document.getElementById('modalOverlay');
-    if (modalOverlay) modalOverlay.style.display = 'none';
-}
-
-// ======== ВЫХОД ========
-async function logout(event) {
-    if (event) event.preventDefault();
-    try {
-        await apiRequest('/api/logout', { method: 'POST' });
-    } catch (e) { /* ignore */ }
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.href = '/';
-}
-
-// Экспорт глобальных функций для HTML
-window.toggleTheme = toggleTheme;
-window.toggleSidebar = toggleSidebar;
-window.showContent = showContent;
-window.showTopContent = showTopContent;
-window.searchDevices = searchDevices;
-window.showDeviceDetails = showDeviceDetails;
-window.addDevice = addDevice;
-window.editDevice = editDevice;
-window.saveDevice = saveDevice;
-window.deleteDevice = deleteDevice;
-window.addDeviceType = addDeviceType;
-window.deleteDeviceType = deleteDeviceType;
-window.addComponent = addComponent;
-window.deleteComponent = deleteComponent;
-window.addProductionPlace = addProductionPlace;
-window.deleteProductionPlace = deleteProductionPlace;
-window.loadStatistics = loadStatistics;
-window.filterEmployees = filterEmployees;
-window.addEmployee = addEmployee;
-window.editEmployee = editEmployee;
-window.saveEmployee = saveEmployee;
-window.deleteEmployee = deleteEmployee;
-window.closeModal = closeModal;
-window.closeModalForce = closeModalForce;
-window.logout = logout;
-window.zoomIn = zoomIn;
-window.zoomOut = zoomOut;
-window.resetZoom = resetZoom;
