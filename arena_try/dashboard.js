@@ -17,8 +17,21 @@ const S = {
     isoList: [],
     boardTypes: [],
     statistics: null,
-    section: 'devices'
+    section: 'devices',
+    repairDevices: []
 };
+
+// ============ Error Dialog ============
+function showError(message, title = 'Ошибка') {
+    const dialog = document.getElementById('errorDialog');
+    document.getElementById('errorTitle').textContent = title;
+    document.getElementById('errorMessage').textContent = message;
+    dialog.classList.add('active');
+}
+
+function closeErrorDialog() {
+    document.getElementById('errorDialog').classList.remove('active');
+}
 
 // ============ INIT ============
 document.addEventListener('DOMContentLoaded', () => {
@@ -27,7 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
         location.href = '/';
         return;
     }
-    document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
     loadUser();
 });
 
@@ -38,7 +52,6 @@ async function api(url, opt = {}) {
         'Authorization': 'Bearer ' + S.token
     };
 
-    // Remove Content-Type for FormData
     if (opt.body instanceof FormData) {
         delete headers['Content-Type'];
     }
@@ -49,7 +62,6 @@ async function api(url, opt = {}) {
             headers: { ...headers, ...opt.headers }
         });
 
-        // Check if response is JSON
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
             const text = await response.text();
@@ -72,7 +84,7 @@ async function api(url, opt = {}) {
         return data;
     } catch (e) {
         console.error('API Error:', url, e);
-        toast(e.message, 'error');
+        showError(e.message);
         throw e;
     }
 }
@@ -97,7 +109,6 @@ async function loadUser() {
         showContent('devices');
     } catch (e) {
         console.error('loadUser failed:', e);
-        // Don't redirect, show error
         document.getElementById('contentArea').innerHTML =
             '<div class="empty-state"><p>Ошибка загрузки пользователя: ' + e.message + '</p></div>';
     }
@@ -110,10 +121,10 @@ function logout() {
 }
 
 function toggleTheme() {
-    const c = document.documentElement.getAttribute('data-theme');
-    const n = c === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', n);
-    localStorage.setItem('theme', n);
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
 }
 
 function toggleSidebar() {
@@ -150,15 +161,12 @@ function closeModal(e) {
 function showContent(section) {
     S.section = section;
 
-    // Update active nav
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     const navItem = document.querySelector('[data-section="' + section + '"]');
     if (navItem) navItem.classList.add('active');
 
-    // Close mobile sidebar
     document.getElementById('sidebar').classList.remove('open');
 
-    // Update title
     const titles = {
         'devices': 'Устройства',
         'boards': 'Платы',
@@ -167,16 +175,16 @@ function showContent(section) {
         'stand-assembly': 'Стенд сборки',
         'stand-psi': 'Стенд ПСИ',
         'stand-packaging': 'Стенд упаковки',
+        'repair': 'Ремонт',
         'types': 'Типы изделий',
         'places': 'Места производства',
-        'serial-structure': 'Структура серийного №',
+        'serial-structure': 'Структура серийного номера',
         'statistics': 'Статистика',
         'profile': 'Профиль',
         'employees': 'Сотрудники'
     };
     document.getElementById('pageTitle').textContent = titles[section] || section;
 
-    // Route to function
     switch (section) {
         case 'devices': loadDevices(); break;
         case 'boards': loadBoards(); break;
@@ -191,6 +199,7 @@ function showContent(section) {
         case 'stand-assembly': renderStandAssembly(); break;
         case 'stand-psi': renderStandPSI(); break;
         case 'stand-packaging': renderStandPackaging(); break;
+        case 'repair': loadRepairDevices(); break;
         default:
             document.getElementById('contentArea').innerHTML =
                 '<div class="empty-state"><p>Раздел в разработке</p></div>';
@@ -210,9 +219,14 @@ function getDeviceImage(type) {
 
 function stageLabel(s) {
     var m = {
-        'new': 'Новое', 'visual_ok': 'Осмотр ✓', 'visual_fail': 'Осмотр ✕',
-        'diagnostics_ok': 'Диагностика ✓', 'diagnostics_fail': 'Диагностика ✕',
-        'assembled': 'Собрано', 'psi_ok': 'ПСИ ✓', 'psi_fail': 'ПСИ ✕',
+        'new': 'Новое',
+        'visual_ok': 'Осмотр пройден',
+        'visual_fail': 'Осмотр не пройден',
+        'diagnostics_ok': 'Диагностика пройдена',
+        'diagnostics_fail': 'Диагностика не пройдена',
+        'assembled': 'Собрано',
+        'psi_ok': 'ПСИ пройден',
+        'psi_fail': 'ПСИ не пройден',
         'packaged': 'Упаковано'
     };
     return m[s] || s || '—';
@@ -220,9 +234,14 @@ function stageLabel(s) {
 
 function stageBadge(s) {
     var m = {
-        'new': 'badge-neutral', 'visual_ok': 'badge-info', 'visual_fail': 'badge-error',
-        'diagnostics_ok': 'badge-warning', 'diagnostics_fail': 'badge-error',
-        'assembled': 'badge-info', 'psi_ok': 'badge-success', 'psi_fail': 'badge-error',
+        'new': 'badge-neutral',
+        'visual_ok': 'badge-info',
+        'visual_fail': 'badge-error',
+        'diagnostics_ok': 'badge-warning',
+        'diagnostics_fail': 'badge-error',
+        'assembled': 'badge-info',
+        'psi_ok': 'badge-success',
+        'psi_fail': 'badge-error',
         'packaged': 'badge-success'
     };
     return m[s] || 'badge-neutral';
@@ -257,10 +276,18 @@ function renderPipeline(currentStage, isBoard) {
             cls = 'done';
         }
         if (i > 0) html += '<span class="pipeline-arrow">→</span>';
-        html += '<span class="pipeline-step ' + cls + '">' + (cls === 'done' ? '✓ ' : '') + s.l + '</span>';
+        var prefix = (cls === 'done') ? '✓ ' : '';
+        html += '<span class="pipeline-step ' + cls + '">' + prefix + s.l + '</span>';
     }
     html += '</div>';
     return html;
+}
+
+function getFailedStage(device) {
+    if (device.current_stage === 'visual_fail') return 'visual';
+    if (device.current_stage === 'diagnostics_fail') return 'diagnostics';
+    if (device.current_stage === 'psi_fail') return 'psi';
+    return null;
 }
 
 // ============ DEVICES ============
@@ -302,10 +329,10 @@ function renderDevicesPage() {
 
     var html = '';
     html += '<div class="stats-grid">';
-    html += '<div class="stat-card"><div class="stat-icon blue">📦</div><div class="stat-info"><span class="stat-value">' + S.devices.length + '</span><span class="stat-label">Всего</span></div></div>';
-    html += '<div class="stat-card"><div class="stat-icon green">🔌</div><div class="stat-info"><span class="stat-value">' + rsCount + '</span><span class="stat-label">Маршрутизаторов</span></div></div>';
-    html += '<div class="stat-card"><div class="stat-icon purple">🔀</div><div class="stat-info"><span class="stat-value">' + saCount + '</span><span class="stat-label">Коммутаторов</span></div></div>';
-    html += '<div class="stat-card"><div class="stat-icon orange">📦</div><div class="stat-info"><span class="stat-value">' + packagedCount + '</span><span class="stat-label">Упаковано</span></div></div>';
+    html += '<div class="stat-card"><div class="stat-icon blue"></div><div class="stat-info"><span class="stat-value">' + S.devices.length + '</span><span class="stat-label">Всего</span></div></div>';
+    html += '<div class="stat-card"><div class="stat-icon green"></div><div class="stat-info"><span class="stat-value">' + rsCount + '</span><span class="stat-label">Маршрутизаторов</span></div></div>';
+    html += '<div class="stat-card"><div class="stat-icon purple"></div><div class="stat-info"><span class="stat-value">' + saCount + '</span><span class="stat-label">Коммутаторов</span></div></div>';
+    html += '<div class="stat-card"><div class="stat-icon orange"></div><div class="stat-info"><span class="stat-value">' + packagedCount + '</span><span class="stat-label">Упаковано</span></div></div>';
     html += '</div>';
 
     html += '<div class="action-panel">';
@@ -393,7 +420,6 @@ async function showDeviceDetails(id) {
 
         var img = d.image_path || getDeviceImage(d.type);
 
-        // Boards
         var boardsHtml = '';
         if (d.boards && d.boards.length) {
             for (var i = 0; i < d.boards.length; i++) {
@@ -404,7 +430,6 @@ async function showDeviceDetails(id) {
             boardsHtml = '<p style="color:var(--text-muted)">Нет привязанных плат</p>';
         }
 
-        // MACs
         var macHtml = '';
         if (d.macs && d.macs.length) {
             for (var i = 0; i < d.macs.length; i++) {
@@ -415,12 +440,11 @@ async function showDeviceDetails(id) {
             macHtml = '<p style="color:var(--text-muted)">Нет</p>';
         }
 
-        // History
         var historyHtml = '';
         if (d.history && d.history.length) {
             for (var i = 0; i < d.history.length; i++) {
                 var h = d.history[i];
-                historyHtml += '<div class="recent-item"><div class="recent-item-icon">📋</div><div class="recent-item-info"><div class="recent-item-title">' + (h.message || '—') + '</div><div class="recent-item-sub">' + (h.date_time || '') + (h.emp_name ? ' — ' + h.emp_name : '') + '</div></div></div>';
+                historyHtml += '<div class="recent-item"><div class="recent-item-icon"></div><div class="recent-item-info"><div class="recent-item-title">' + (h.message || '—') + '</div><div class="recent-item-sub">' + (h.date_time || '') + (h.emp_name ? ' — ' + h.emp_name : '') + '</div></div></div>';
             }
         } else {
             historyHtml = '<p style="color:var(--text-muted)">Нет записей</p>';
@@ -434,7 +458,6 @@ async function showDeviceDetails(id) {
 
         html += '<div class="detail-grid">';
 
-        // Basic info
         html += '<div class="detail-group"><div class="detail-group-title">Основная информация</div>';
         html += '<div class="detail-row"><span class="detail-label">Серийный номер</span><span class="detail-value">' + (d.product_serial_number || '—') + '</span></div>';
         html += '<div class="detail-row"><span class="detail-label">Тип</span><span class="detail-value">' + (d.device_type_name || '—') + '</span></div>';
@@ -444,27 +467,21 @@ async function showDeviceDetails(id) {
         html += '<div class="detail-row"><span class="detail-label">Стадия</span><span class="detail-value"><span class="badge ' + stageBadge(d.current_stage) + '">' + stageLabel(d.current_stage) + '</span></span></div>';
         html += '</div>';
 
-        // Stands
         html += '<div class="detail-group"><div class="detail-group-title">Стенды</div>';
-        html += '<div class="detail-row"><span class="detail-label">Сборка</span><span class="detail-value">' + (d.assembly_passed ? '✅ ' + (d.assembly_employee_full || '') : '❌') + '</span></div>';
-        html += '<div class="detail-row"><span class="detail-label">ПСИ</span><span class="detail-value">' + (d.psi_passed ? '✅ ' + (d.psi_protocol_number || '') : '❌') + '</span></div>';
-        html += '<div class="detail-row"><span class="detail-label">Упаковка</span><span class="detail-value">' + (d.packaging_passed ? '✅ Паспорт: ' + (d.passport_printed ? '✓' : '✕') : '❌') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Сборка</span><span class="detail-value">' + (d.assembly_passed ? 'Пройдена ' + (d.assembly_employee_full || '') : 'Не пройдена') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">ПСИ</span><span class="detail-value">' + (d.psi_passed ? 'Пройден ' + (d.psi_protocol_number || '') : 'Не пройден') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Упаковка</span><span class="detail-value">' + (d.packaging_passed ? 'Пройдена' : 'Не пройдена') + '</span></div>';
         html += '</div>';
 
-        // Boards
         html += '<div class="detail-group"><div class="detail-group-title">Платы</div>' + boardsHtml + '</div>';
-
-        // MACs
         html += '<div class="detail-group"><div class="detail-group-title">MAC-адреса</div>' + macHtml + '</div>';
+        html += '</div>';
 
-        html += '</div>'; // end detail-grid
-
-        // History
-        html += '<div class="section-card" style="margin-top:20px"><h3>📋 История</h3><div class="recent-list">' + historyHtml + '</div></div>';
+        html += '<div class="section-card" style="margin-top:20px"><h3>История</h3><div class="recent-list">' + historyHtml + '</div></div>';
 
         openModal('Устройство: ' + (d.product_serial_number || ''), html);
     } catch (e) {
-        toast('Ошибка: ' + e.message, 'error');
+        showError(e.message);
     }
 }
 
@@ -521,7 +538,6 @@ async function saveDevice(event, deviceId) {
     formData.forEach(function (value, key) { data[key] = value; });
     data.diag = false;
 
-    // Convert empty to null
     var nullFields = ['place_of_production_id', 'production_month_id', 'production_year_id', 'production_stage_id', 'actual_location_id', 'bmc_id', 'uboot_id', 'iso_id'];
     for (var i = 0; i < nullFields.length; i++) {
         if (!data[nullFields[i]]) data[nullFields[i]] = null;
@@ -538,7 +554,7 @@ async function saveDevice(event, deviceId) {
         closeModal();
         loadDevices();
     } catch (e) {
-        toast(e.message, 'error');
+        showError(e.message);
     }
 }
 
@@ -557,7 +573,98 @@ async function deleteDevice(id) {
         toast('Удалено', 'success');
         loadDevices();
     } catch (e) {
-        toast(e.message, 'error');
+        showError(e.message);
+    }
+}
+
+// ============ REPAIR ============
+async function loadRepairDevices() {
+    var content = document.getElementById('contentArea');
+    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка...</p></div>';
+
+    try {
+        var devices = await api('/api/devices');
+        S.repairDevices = (devices || []).filter(function(d) {
+            var failedStages = ['visual_fail', 'diagnostics_fail', 'psi_fail'];
+            return failedStages.includes(d.current_stage);
+        });
+
+        if (!S.repairDevices.length) {
+            content.innerHTML = '<div class="empty-state"><p>Нет устройств в ремонте</p></div>';
+            return;
+        }
+
+        var html = '<div class="repair-list">';
+        for (var i = 0; i < S.repairDevices.length; i++) {
+            var d = S.repairDevices[i];
+            var failedStageName = stageLabel(d.current_stage);
+
+            html += '<div class="repair-item" data-device-id="' + d.id + '">';
+            html += '<div class="repair-header">';
+            html += '<span class="repair-sn">' + (d.product_serial_number || '—') + '</span>';
+            html += '<span class="repair-stage failed">' + failedStageName + '</span>';
+            html += '</div>';
+            html += '<div class="repair-details">Тип: ' + (d.device_type_name || '—') + '</div>';
+            var reason = '';
+            if (d.current_stage === 'visual_fail') reason = 'Не пройден визуальный осмотр';
+            else if (d.current_stage === 'diagnostics_fail') reason = 'Не пройдена диагностика';
+            else if (d.current_stage === 'psi_fail') reason = 'Не пройден ПСИ';
+            html += '<div class="repair-error">Причина: ' + reason + '</div>';
+            html += '<div class="repair-actions">';
+            html += '<button class="repair-btn repair-btn-resume" onclick="resumeRepair(' + d.id + ')">Возобновить проверку</button>';
+            if (S.user && S.user.role === 'admin') {
+                html += '<button class="repair-btn repair-btn-delete" onclick="deleteRepairDevice(' + d.id + ')">Удалить</button>';
+            }
+            html += '</div></div>';
+        }
+        html += '</div>';
+        content.innerHTML = html;
+    } catch (e) {
+        content.innerHTML = '<div class="empty-state"><p>Ошибка загрузки: ' + e.message + '</p></div>';
+    }
+}
+
+async function resumeRepair(deviceId) {
+    try {
+        var device = await api('/api/devices/' + deviceId);
+        if (!device) return;
+
+        var failedStage = device.current_stage;
+        var targetStand = null;
+
+        if (failedStage === 'visual_fail') targetStand = 'stand-visual';
+        else if (failedStage === 'diagnostics_fail') targetStand = 'stand-diag';
+        else if (failedStage === 'psi_fail') targetStand = 'stand-psi';
+        else {
+            showError('Это устройство не требует ремонта');
+            return;
+        }
+
+        toast('Переход к стенду', 'info');
+        showContent(targetStand);
+
+        setTimeout(function() {
+            if (targetStand === 'stand-visual' || targetStand === 'stand-diag') {
+                var formInput = document.querySelector('.stand-form input[name="serial_number"]');
+                if (formInput) formInput.value = device.product_serial_number;
+            } else if (targetStand === 'stand-psi') {
+                var psiInput = document.querySelector('.stand-form input[name="device_serial_number"]');
+                if (psiInput) psiInput.value = device.product_serial_number;
+            }
+        }, 100);
+    } catch (e) {
+        showError(e.message);
+    }
+}
+
+async function deleteRepairDevice(id) {
+    if (!confirm('Удалить устройство из ремонта?')) return;
+    try {
+        await api('/api/devices/' + id, { method: 'DELETE' });
+        toast('Удалено', 'success');
+        loadRepairDevices();
+    } catch (e) {
+        showError(e.message);
     }
 }
 
@@ -585,10 +692,10 @@ async function loadBoards() {
 
         var html = '';
         html += '<div class="stats-grid">';
-        html += '<div class="stat-card"><div class="stat-icon blue">🔲</div><div class="stat-info"><span class="stat-value">' + S.boards.length + '</span><span class="stat-label">Всего плат</span></div></div>';
-        html += '<div class="stat-card"><div class="stat-icon green">✅</div><div class="stat-info"><span class="stat-value">' + viCount + '</span><span class="stat-label">Осмотрено</span></div></div>';
-        html += '<div class="stat-card"><div class="stat-icon orange">⚡</div><div class="stat-info"><span class="stat-value">' + diagCount + '</span><span class="stat-label">Диагностировано</span></div></div>';
-        html += '<div class="stat-card"><div class="stat-icon purple">🔧</div><div class="stat-info"><span class="stat-value">' + asmCount + '</span><span class="stat-label">В изделиях</span></div></div>';
+        html += '<div class="stat-card"><div class="stat-icon blue"></div><div class="stat-info"><span class="stat-value">' + S.boards.length + '</span><span class="stat-label">Всего плат</span></div></div>';
+        html += '<div class="stat-card"><div class="stat-icon green"></div><div class="stat-info"><span class="stat-value">' + viCount + '</span><span class="stat-label">Осмотрено</span></div></div>';
+        html += '<div class="stat-card"><div class="stat-icon orange"></div><div class="stat-info"><span class="stat-value">' + diagCount + '</span><span class="stat-label">Диагностировано</span></div></div>';
+        html += '<div class="stat-card"><div class="stat-icon purple"></div><div class="stat-info"><span class="stat-value">' + asmCount + '</span><span class="stat-label">В изделиях</span></div></div>';
         html += '</div>';
 
         html += '<div class="action-panel">';
@@ -610,8 +717,8 @@ async function loadBoards() {
             html += '<td><span class="badge badge-neutral">' + (b.board_type_name || '—') + '</span></td>';
             html += '<td><span class="badge ' + stageBadge(b.current_stage) + '">' + stageLabel(b.current_stage) + '</span></td>';
             html += '<td>' + (b.device_serial || '—') + '</td>';
-            html += '<td>' + (b.visual_inspection_passed ? '<span class="badge badge-success">✓</span>' : '<span class="badge badge-neutral">—</span>') + '</td>';
-            html += '<td>' + (b.diagnostics_passed ? '<span class="badge badge-success">✓</span>' : '<span class="badge badge-neutral">—</span>') + '</td>';
+            html += '<td>' + (b.visual_inspection_passed ? '<span class="badge badge-success">Пройден</span>' : '<span class="badge badge-neutral">—</span>') + '</td>';
+            html += '<td>' + (b.diagnostics_passed ? '<span class="badge badge-success">Пройдена</span>' : '<span class="badge badge-neutral">—</span>') + '</td>';
             html += '</tr>';
         }
 
@@ -660,7 +767,7 @@ async function saveBoard(event) {
         closeModal();
         loadBoards();
     } catch (e) {
-        toast(e.message, 'error');
+        showError(e.message);
     }
 }
 
@@ -673,7 +780,7 @@ async function showBoardDetails(id) {
         if (b.vi_records && b.vi_records.length) {
             for (var i = 0; i < b.vi_records.length; i++) {
                 var r = b.vi_records[i];
-                viHtml += '<div class="detail-row"><span class="detail-label">' + (r.inspection_date || '') + '</span><span class="detail-value">' + (r.result ? '✅' : '❌') + ' ' + (r.comment || '') + '</span></div>';
+                viHtml += '<div class="detail-row"><span class="detail-label">' + (r.inspection_date || '') + '</span><span class="detail-value">' + (r.result ? 'Пройден' : 'Не пройден') + ' ' + (r.comment || '') + '</span></div>';
             }
         } else {
             viHtml = '<p style="color:var(--text-muted)">Нет</p>';
@@ -683,7 +790,7 @@ async function showBoardDetails(id) {
         if (b.diag_records && b.diag_records.length) {
             for (var i = 0; i < b.diag_records.length; i++) {
                 var r = b.diag_records[i];
-                diagHtml += '<div class="detail-row"><span class="detail-label">' + (r.diagnostics_date || '') + '</span><span class="detail-value">' + (r.result ? '✅' : '❌') + ' Порты:' + (r.ports_ok ? '✓' : '✕') + ' ОС:' + (r.os_installed ? '✓' : '✕') + '</span></div>';
+                diagHtml += '<div class="detail-row"><span class="detail-label">' + (r.diagnostics_date || '') + '</span><span class="detail-value">' + (r.result ? 'Пройдена' : 'Не пройдена') + ' Порты:' + (r.ports_ok ? '+' : '-') + ' ОС:' + (r.os_installed ? '+' : '-') + '</span></div>';
             }
         } else {
             diagHtml = '<p style="color:var(--text-muted)">Нет</p>';
@@ -692,7 +799,7 @@ async function showBoardDetails(id) {
         var html = renderPipeline(b.current_stage, true);
         html += '<div class="detail-grid">';
         html += '<div class="detail-group"><div class="detail-group-title">Информация</div>';
-        html += '<div class="detail-row"><span class="detail-label">Серийный №</span><span class="detail-value">' + b.serial_number + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Серийный номер</span><span class="detail-value">' + b.serial_number + '</span></div>';
         html += '<div class="detail-row"><span class="detail-label">Тип</span><span class="detail-value">' + (b.board_type_name || '') + '</span></div>';
         html += '<div class="detail-row"><span class="detail-label">Стадия</span><span class="detail-value"><span class="badge ' + stageBadge(b.current_stage) + '">' + stageLabel(b.current_stage) + '</span></span></div>';
         html += '<div class="detail-row"><span class="detail-label">Устройство</span><span class="detail-value">' + (b.device_serial || 'Не привязана') + '</span></div>';
@@ -703,7 +810,7 @@ async function showBoardDetails(id) {
 
         openModal('Плата: ' + b.serial_number, html);
     } catch (e) {
-        toast(e.message, 'error');
+        showError(e.message);
     }
 }
 
@@ -712,7 +819,7 @@ async function showBoardDetails(id) {
 function renderStandVisual() {
     document.getElementById('contentArea').innerHTML =
         '<div class="stand-form"><div class="section-card">' +
-        '<h3>👁️ Стенд визуального осмотра</h3>' +
+        '<h3>Стенд визуального осмотра</h3>' +
         '<p style="color:var(--text-secondary);margin-bottom:20px">Считайте QR-код платы. Только новые платы.</p>' +
         '<form onsubmit="submitVisualInspection(event)">' +
         '<div class="form-grid">' +
@@ -720,8 +827,8 @@ function renderStandVisual() {
         '<div class="form-group full-width"><label class="form-label">Комментарий</label><textarea class="form-textarea" name="comment" placeholder="Результаты..."></textarea></div>' +
         '</div>' +
         '<div class="form-actions" style="justify-content:center;gap:16px">' +
-        '<button type="submit" name="resultBtn" value="ok" class="btn btn-primary" style="background:var(--success)">✓ ОК</button>' +
-        '<button type="submit" name="resultBtn" value="fail" class="btn btn-danger">✕ Брак</button>' +
+        '<button type="submit" name="resultBtn" value="ok" class="btn btn-primary" style="background:var(--success)">ОК</button>' +
+        '<button type="submit" name="resultBtn" value="fail" class="btn btn-danger">Брак</button>' +
         '</div></form>' +
         '<div id="standResult"></div>' +
         '</div></div>';
@@ -741,18 +848,21 @@ async function submitVisualInspection(event) {
                 comment: fd.get('comment')
             })
         });
-        document.getElementById('standResult').innerHTML = '<div class="stand-result success"><h4>✅ ' + r.message + '</h4></div>';
+        document.getElementById('standResult').innerHTML = '<div class="stand-result success"><h4>' + r.message + '</h4></div>';
         event.target.reset();
         toast(r.message, 'success');
+        if (!isOk) {
+            toast('Плата отправлена в ремонт', 'warning');
+        }
     } catch (e) {
-        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>❌ ' + e.message + '</h4></div>';
+        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>' + e.message + '</h4></div>';
     }
 }
 
 function renderStandDiag() {
     document.getElementById('contentArea').innerHTML =
         '<div class="stand-form"><div class="section-card">' +
-        '<h3>⚡ Стенд диагностики</h3>' +
+        '<h3>Стенд диагностики</h3>' +
         '<p style="color:var(--text-secondary);margin-bottom:20px">Плата должна пройти визуальный осмотр.</p>' +
         '<form onsubmit="submitDiagnostics(event)">' +
         '<div class="form-grid">' +
@@ -769,8 +879,8 @@ function renderStandDiag() {
         '</div></div>' +
         '<div class="form-group full-width" style="margin-top:16px"><label class="form-label">Комментарий</label><textarea class="form-textarea" name="comment"></textarea></div>' +
         '<div class="form-actions" style="justify-content:center;gap:16px">' +
-        '<button type="submit" name="resultBtn" value="ok" class="btn btn-primary" style="background:var(--success)">✓ Пройдена</button>' +
-        '<button type="submit" name="resultBtn" value="fail" class="btn btn-danger">✕ Не пройдена</button>' +
+        '<button type="submit" name="resultBtn" value="ok" class="btn btn-primary" style="background:var(--success)">Пройдена</button>' +
+        '<button type="submit" name="resultBtn" value="fail" class="btn btn-danger">Не пройдена</button>' +
         '</div></form>' +
         '<div id="standResult"></div>' +
         '</div></div>';
@@ -796,23 +906,26 @@ async function submitDiagnostics(event) {
                 memory_ok: fd.has('memory_ok')
             })
         });
-        document.getElementById('standResult').innerHTML = '<div class="stand-result success"><h4>✅ ' + r.message + '</h4></div>';
+        document.getElementById('standResult').innerHTML = '<div class="stand-result success"><h4>' + r.message + '</h4></div>';
         event.target.reset();
         toast(r.message, 'success');
+        if (!isOk) {
+            toast('Плата отправлена в ремонт', 'warning');
+        }
     } catch (e) {
-        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>❌ ' + e.message + '</h4></div>';
+        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>' + e.message + '</h4></div>';
     }
 }
 
 function renderStandAssembly() {
     document.getElementById('contentArea').innerHTML =
         '<div class="stand-form"><div class="section-card">' +
-        '<h3>🔧 Стенд сборки</h3>' +
+        '<h3>Стенд сборки</h3>' +
         '<p style="color:var(--text-secondary);margin-bottom:20px">Все платы должны пройти диагностику.</p>' +
         '<form onsubmit="submitAssembly(event)">' +
         '<div class="form-grid">' +
-        '<div class="form-group full-width"><label class="form-label">Серийный № изделия *</label><input class="form-input" name="device_serial_number" required placeholder="RS501175220XXX"></div>' +
-        '<div class="form-group full-width"><label class="form-label">Серийный № корпуса *</label><input class="form-input" name="case_serial_number" required placeholder="CASE-RS-2024-XXX"></div>' +
+        '<div class="form-group full-width"><label class="form-label">Серийный номер изделия *</label><input class="form-input" name="device_serial_number" required placeholder="RS501175220XXX"></div>' +
+        '<div class="form-group full-width"><label class="form-label">Серийный номер корпуса *</label><input class="form-input" name="case_serial_number" required placeholder="CASE-RS-2024-XXX"></div>' +
         '<div class="form-group"><label class="form-label">Тип</label><select class="form-select" name="device_type_id"><option value="1">RS</option><option value="2">SA</option></select></div>' +
         '</div>' +
         '<div class="form-group full-width" style="margin-top:16px">' +
@@ -820,7 +933,7 @@ function renderStandAssembly() {
         '<textarea class="form-textarea" name="board_serials" required placeholder="MB-RS-2024-010&#10;PB-RS-2024-010" style="min-height:120px"></textarea>' +
         '</div>' +
         '<div class="form-actions" style="justify-content:center">' +
-        '<button type="submit" class="btn btn-primary">🔧 Собрать</button>' +
+        '<button type="submit" class="btn btn-primary">Собрать</button>' +
         '</div></form>' +
         '<div id="standResult"></div>' +
         '</div></div>';
@@ -843,22 +956,22 @@ async function submitAssembly(event) {
                 device_type_id: fd.get('device_type_id')
             })
         });
-        document.getElementById('standResult').innerHTML = '<div class="stand-result success"><h4>✅ ' + r.message + '</h4><p>ID: ' + r.device_id + '</p></div>';
+        document.getElementById('standResult').innerHTML = '<div class="stand-result success"><h4>' + r.message + '</h4><p>ID: ' + r.device_id + '</p></div>';
         event.target.reset();
         toast(r.message, 'success');
     } catch (e) {
-        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>❌ ' + e.message + '</h4></div>';
+        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>' + e.message + '</h4></div>';
     }
 }
 
 function renderStandPSI() {
     document.getElementById('contentArea').innerHTML =
         '<div class="stand-form"><div class="section-card">' +
-        '<h3>🧪 Стенд ПСИ</h3>' +
+        '<h3>Стенд ПСИ</h3>' +
         '<p style="color:var(--text-secondary);margin-bottom:20px">Устройство должно пройти сборку.</p>' +
         '<form onsubmit="submitPSI(event)">' +
         '<div class="form-grid">' +
-        '<div class="form-group full-width"><label class="form-label">Серийный № изделия *</label><input class="form-input" name="device_serial_number" required autofocus></div>' +
+        '<div class="form-group full-width"><label class="form-label">Серийный номер изделия *</label><input class="form-input" name="device_serial_number" required autofocus></div>' +
         '<div class="form-group"><label class="form-label">Протокол *</label><input class="form-input" name="protocol_number" required placeholder="PSI-2024-XXX"></div>' +
         '<div class="form-group"><label class="form-label">Прошивка *</label><input class="form-input" name="firmware_version" required placeholder="router_6.4"></div>' +
         '</div>' +
@@ -871,8 +984,8 @@ function renderStandPSI() {
         '</div></div>' +
         '<div class="form-group full-width" style="margin-top:16px"><label class="form-label">Комментарий</label><textarea class="form-textarea" name="comment"></textarea></div>' +
         '<div class="form-actions" style="justify-content:center;gap:16px">' +
-        '<button type="submit" name="resultBtn" value="ok" class="btn btn-primary" style="background:var(--success)">✓ ПСИ пройден</button>' +
-        '<button type="submit" name="resultBtn" value="fail" class="btn btn-danger">✕ Не пройден</button>' +
+        '<button type="submit" name="resultBtn" value="ok" class="btn btn-primary" style="background:var(--success)">ПСИ пройден</button>' +
+        '<button type="submit" name="resultBtn" value="fail" class="btn btn-danger">Не пройден</button>' +
         '</div></form>' +
         '<div id="standResult"></div>' +
         '</div></div>';
@@ -898,26 +1011,29 @@ async function submitPSI(event) {
                 memory_ok: fd.has('memory_ok')
             })
         });
-        document.getElementById('standResult').innerHTML = '<div class="stand-result success"><h4>✅ ' + r.message + '</h4></div>';
+        document.getElementById('standResult').innerHTML = '<div class="stand-result success"><h4>' + r.message + '</h4></div>';
         event.target.reset();
         toast(r.message, 'success');
+        if (!isOk) {
+            toast('Устройство отправлено в ремонт', 'warning');
+        }
     } catch (e) {
-        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>❌ ' + e.message + '</h4></div>';
+        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>' + e.message + '</h4></div>';
     }
 }
 
 function renderStandPackaging() {
     document.getElementById('contentArea').innerHTML =
         '<div class="stand-form"><div class="section-card">' +
-        '<h3>📦 Стенд упаковки</h3>' +
+        '<h3>Стенд упаковки</h3>' +
         '<p style="color:var(--text-secondary);margin-bottom:20px">Устройство должно пройти ПСИ. Печать паспорта и этикетки.</p>' +
         '<form onsubmit="submitPackaging(event)">' +
         '<div class="form-grid">' +
-        '<div class="form-group full-width"><label class="form-label">Серийный № изделия *</label><input class="form-input" name="device_serial_number" required autofocus></div>' +
+        '<div class="form-group full-width"><label class="form-label">Серийный номер изделия *</label><input class="form-input" name="device_serial_number" required autofocus></div>' +
         '<div class="form-group full-width"><label class="form-label">Комментарий</label><textarea class="form-textarea" name="comment"></textarea></div>' +
         '</div>' +
         '<div class="form-actions" style="justify-content:center">' +
-        '<button type="submit" class="btn btn-primary">📦 Упаковать</button>' +
+        '<button type="submit" class="btn btn-primary">Упаковать</button>' +
         '</div></form>' +
         '<div id="standResult"></div>' +
         '</div></div>';
@@ -938,15 +1054,15 @@ async function submitPackaging(event) {
         var dateStr = r.passport && r.passport.date ? new Date(r.passport.date).toLocaleString('ru') : '';
         document.getElementById('standResult').innerHTML =
             '<div class="stand-result success">' +
-            '<h4>✅ ' + r.message + '</h4>' +
-            '<p style="margin-top:12px">📄 Паспорт: ' + (r.passport ? r.passport.serial_number : '') + '</p>' +
-            '<p>🏷️ Этикетка: ' + (r.label ? r.label.serial_number : '') + '</p>' +
+            '<h4>' + r.message + '</h4>' +
+            '<p style="margin-top:12px">Паспорт: ' + (r.passport ? r.passport.serial_number : '') + '</p>' +
+            '<p>Этикетка: ' + (r.label ? r.label.serial_number : '') + '</p>' +
             '<p style="font-size:12px;color:var(--text-muted);margin-top:8px">' + dateStr + '</p>' +
             '</div>';
         event.target.reset();
         toast(r.message, 'success');
     } catch (e) {
-        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>❌ ' + e.message + '</h4></div>';
+        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>' + e.message + '</h4></div>';
     }
 }
 
@@ -1000,13 +1116,13 @@ async function saveType(e) {
         toast('Добавлено', 'success');
         closeModal();
         loadDeviceTypes();
-    } catch (err) { toast(err.message, 'error'); }
+    } catch (err) { showError(err.message); }
 }
 
 async function deleteType(id) {
     if (!confirm('Удалить?')) return;
     try { await api('/api/device-types/' + id, { method: 'DELETE' }); toast('Удалено', 'success'); loadDeviceTypes(); }
-    catch (e) { toast(e.message, 'error'); }
+    catch (e) { showError(e.message); }
 }
 
 async function loadProductionPlaces() {
@@ -1057,18 +1173,18 @@ async function savePlace(e) {
         toast('Добавлено', 'success');
         closeModal();
         loadProductionPlaces();
-    } catch (err) { toast(err.message, 'error'); }
+    } catch (err) { showError(err.message); }
 }
 
 async function deletePlace(id) {
     if (!confirm('Удалить?')) return;
     try { await api('/api/production-places/' + id, { method: 'DELETE' }); toast('Удалено', 'success'); loadProductionPlaces(); }
-    catch (e) { toast(e.message, 'error'); }
+    catch (e) { showError(e.message); }
 }
 
 function renderSerialStructure() {
     document.getElementById('contentArea').innerHTML =
-        '<div class="section-card"><h3>🔢 Формат серийного номера</h3>' +
+        '<div class="section-card"><h3>Формат серийного номера</h3>' +
         '<p style="color:var(--text-secondary);margin-bottom:24px">Пример: <strong>RS501175220001</strong></p>' +
         '<div style="text-align:center;margin-bottom:40px"><div class="serial-structure">' +
         '<div class="serial-segment seg-type" data-label="Тип">RS</div>' +
@@ -1077,11 +1193,11 @@ function renderSerialStructure() {
         '<div class="serial-segment seg-prod" data-label="Код">17</div>' +
         '<div class="serial-segment seg-year" data-label="Год">52</div>' +
         '<div class="serial-segment seg-month" data-label="Месяц">20</div>' +
-        '<div class="serial-segment seg-seq" data-label="Посл.">001</div>' +
+        '<div class="serial-segment seg-seq" data-label="Последовательный">001</div>' +
         '</div></div></div>' +
         '<div class="detail-grid">' +
-        '<div class="section-card"><h3>📋 Тип</h3><div class="detail-row"><span class="detail-label">RS</span><span class="detail-value">Маршрутизатор</span></div><div class="detail-row"><span class="detail-label">SA</span><span class="detail-value">Коммутатор</span></div></div>' +
-        '<div class="section-card"><h3>🏭 Этап</h3><div class="detail-row"><span class="detail-label">1-2</span><span class="detail-value">Опытный образец</span></div><div class="detail-row"><span class="detail-label">3-4</span><span class="detail-value">Отладка</span></div><div class="detail-row"><span class="detail-label">5</span><span class="detail-value">Серийное</span></div></div>' +
+        '<div class="section-card"><h3>Тип</h3><div class="detail-row"><span class="detail-label">RS</span><span class="detail-value">Маршрутизатор</span></div><div class="detail-row"><span class="detail-label">SA</span><span class="detail-value">Коммутатор</span></div></div>' +
+        '<div class="section-card"><h3>Этап</h3><div class="detail-row"><span class="detail-label">1-2</span><span class="detail-value">Опытный образец</span></div><div class="detail-row"><span class="detail-label">3-4</span><span class="detail-value">Отладка</span></div><div class="detail-row"><span class="detail-label">5</span><span class="detail-value">Серийное</span></div></div>' +
         '</div>';
 }
 
@@ -1094,17 +1210,16 @@ async function loadStatistics() {
         var s = await api('/api/statistics');
         if (!s) return;
 
-        var stageLabelsMap = { 'new': 'Новое', 'visual_ok': 'Осмотр', 'diagnostics_ok': 'Диагн.', 'assembled': 'Собрано', 'psi_ok': 'ПСИ', 'packaged': 'Упаковано' };
+        var stageLabelsMap = { 'new': 'Новое', 'visual_ok': 'Осмотр', 'diagnostics_ok': 'Диагностика', 'assembled': 'Собрано', 'psi_ok': 'ПСИ', 'packaged': 'Упаковано' };
 
         var html = '<div class="stats-grid">';
-        html += '<div class="stat-card"><div class="stat-icon blue">📦</div><div class="stat-info"><span class="stat-value">' + s.totalDevices + '</span><span class="stat-label">Устройств</span></div></div>';
-        html += '<div class="stat-card"><div class="stat-icon green">🔲</div><div class="stat-info"><span class="stat-value">' + s.totalBoards + '</span><span class="stat-label">Плат</span></div></div>';
-        html += '<div class="stat-card"><div class="stat-icon purple">👥</div><div class="stat-info"><span class="stat-value">' + s.totalEmployees + '</span><span class="stat-label">Сотрудников</span></div></div>';
+        html += '<div class="stat-card"><div class="stat-icon blue"></div><div class="stat-info"><span class="stat-value">' + s.totalDevices + '</span><span class="stat-label">Устройств</span></div></div>';
+        html += '<div class="stat-card"><div class="stat-icon green"></div><div class="stat-info"><span class="stat-value">' + s.totalBoards + '</span><span class="stat-label">Плат</span></div></div>';
+        html += '<div class="stat-card"><div class="stat-icon purple"></div><div class="stat-info"><span class="stat-value">' + s.totalEmployees + '</span><span class="stat-label">Сотрудников</span></div></div>';
         html += '</div>';
 
         html += '<div class="chart-grid">';
 
-        // By type
         if (s.byType && s.byType.length) {
             var maxT = 1;
             for (var i = 0; i < s.byType.length; i++) { if (s.byType[i].count > maxT) maxT = s.byType[i].count; }
@@ -1116,7 +1231,6 @@ async function loadStatistics() {
             html += '</div></div>';
         }
 
-        // Device stages
         if (s.byStage && s.byStage.length) {
             var maxDS = 1;
             for (var i = 0; i < s.byStage.length; i++) { if (s.byStage[i].count > maxDS) maxDS = s.byStage[i].count; }
@@ -1128,7 +1242,6 @@ async function loadStatistics() {
             html += '</div></div>';
         }
 
-        // Board stages
         if (s.boardsByStage && s.boardsByStage.length) {
             var maxBS = 1;
             for (var i = 0; i < s.boardsByStage.length; i++) { if (s.boardsByStage[i].count > maxBS) maxBS = s.boardsByStage[i].count; }
@@ -1140,12 +1253,11 @@ async function loadStatistics() {
             html += '</div></div>';
         }
 
-        // Recent
         if (s.recentDevices && s.recentDevices.length) {
             html += '<div class="chart-card"><h4>Последние устройства</h4><div class="recent-list">';
             for (var i = 0; i < s.recentDevices.length; i++) {
                 var d = s.recentDevices[i];
-                html += '<div class="recent-item"><div class="recent-item-icon">📦</div><div class="recent-item-info"><div class="recent-item-title">' + (d.product_serial_number || '—') + '</div><div class="recent-item-sub">' + (d.dtn || '') + ' • ' + (stageLabelsMap[d.current_stage] || d.current_stage || '') + '</div></div></div>';
+                html += '<div class="recent-item"><div class="recent-item-icon"></div><div class="recent-item-info"><div class="recent-item-title">' + (d.product_serial_number || '—') + '</div><div class="recent-item-sub">' + (d.dtn || '') + ' • ' + (stageLabelsMap[d.current_stage] || d.current_stage || '') + '</div></div></div>';
             }
             html += '</div></div>';
         }
@@ -1222,7 +1334,7 @@ async function showEditEmp(id) {
     try {
         var e = await api('/api/employees/' + id);
         if (e) showAddEmp(e);
-    } catch (err) { toast(err.message, 'error'); }
+    } catch (err) { showError(err.message); }
 }
 
 async function saveEmp(event, id) {
@@ -1242,13 +1354,13 @@ async function saveEmp(event, id) {
         }
         closeModal();
         loadEmployees();
-    } catch (e) { toast(e.message, 'error'); }
+    } catch (e) { showError(e.message); }
 }
 
 async function deleteEmp(id) {
     if (!confirm('Удалить?')) return;
     try { await api('/api/employees/' + id, { method: 'DELETE' }); toast('Удалено', 'success'); loadEmployees(); }
-    catch (e) { toast(e.message, 'error'); }
+    catch (e) { showError(e.message); }
 }
 
 // ============ PROFILE ============

@@ -559,3 +559,180 @@ body {
     .chart-grid { grid-template-columns: 1fr; }
     .device-card-grid { grid-template-columns: 1fr; }
 }
+
+/* ========== Theme Toggle Button ========== */
+.theme-toggle-btn {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: all var(--transition);
+    box-shadow: var(--shadow-md);
+}
+.theme-toggle-btn:hover {
+    background: var(--primary-light);
+    color: var(--primary);
+    transform: scale(1.05);
+}
+.theme-toggle-btn .moon-icon { display: none; }
+.theme-toggle-btn .sun-icon { display: block; }
+html[data-theme="dark"] .theme-toggle-btn .moon-icon { display: block; }
+html[data-theme="dark"] .theme-toggle-btn .sun-icon { display: none; }
+
+/* ========== Error Dialog ========== */
+.error-dialog {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+}
+.error-dialog.active { display: flex; }
+.error-dialog-content {
+    background: var(--bg-card);
+    border: 1px solid var(--error);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    max-width: 400px;
+    text-align: center;
+    animation: errorSlide 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes errorSlide {
+    from { opacity: 0; transform: scale(0.95) translateY(-20px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.error-dialog-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--error-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    color: var(--error);
+}
+.error-dialog-content h4 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--error);
+    margin-bottom: 12px;
+}
+.error-dialog-content p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+}
+.error-dialog-btn {
+    padding: 10px 24px;
+    background: var(--error);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+.error-dialog-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+/* ========== Repair Items ========== */
+.repair-list { display: flex; flex-direction: column; gap: 16px; }
+.repair-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    transition: all var(--transition);
+}
+.repair-item:hover { border-color: var(--warning); }
+.repair-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+.repair-sn {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--primary);
+}
+.repair-stage {
+    font-size: 12px;
+    font-weight: 600;
+}
+.repair-stage.failed { color: var(--error); }
+.repair-stage.pending { color: var(--warning); }
+.repair-details {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+.repair-error {
+    background: var(--error-bg);
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--error);
+    margin-bottom: 16px;
+}
+.repair-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+.repair-btn {
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+.repair-btn-resume {
+    background: var(--warning);
+    color: #1a1a2e;
+}
+.repair-btn-resume:hover { transform: translateY(-1px); box-shadow: 0 2px 8px var(--warning-bg); }
+.repair-btn-delete {
+    background: var(--error);
+    color: white;
+}
+.repair-btn-delete:hover { transform: translateY(-1px); }
+
+/* ========== Light Theme Overrides ========== */
+html[data-theme="light"] {
+    --bg-main: #F5F0EB;
+    --bg-sidebar: #FFFFFF;
+    --bg-card: #FFFFFF;
+    --bg-input: #F0EBE6;
+    --bg-hover: #E8E0D4;
+    --text-primary: #2C2418;
+    --text-secondary: #6B5F55;
+    --text-muted: #9B8F82;
+    --border: #E8E0D4;
+    --border-light: #F0EBE6;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+}
