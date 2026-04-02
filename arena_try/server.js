@@ -86,6 +86,35 @@ app.post('/loginyara', async (req, res) => {
 });
 
 // ==========================================
+// CHANGE PASSWORD API
+// ==========================================
+app.post('/api/check-password', auth, async (req, res) => {
+    try {
+        const { user_id, password } = req.body;
+        const [rows] = await db.query(
+            'SELECT id FROM employees WHERE id = ? AND password = ?',
+            [user_id, password]
+        );
+        res.json({ success: rows.length > 0 });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/change-password', auth, async (req, res) => {
+    try {
+        const { user_id, new_password } = req.body;
+        await db.query(
+            'UPDATE employees SET password = ? WHERE id = ?',
+            [new_password, user_id]
+        );
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ==========================================
 // HTML PAGES
 // ==========================================
 app.get('/', (req, res) => {

@@ -1507,19 +1507,179 @@ function renderProfile() {
     var roleBadges = { admin: 'badge-error', user: 'badge-info', operator: 'badge-warning' };
     var initials = (u.first_name?.[0] || '') + (u.last_name?.[0] || '');
 
-    document.getElementById('contentArea').innerHTML =
-        '<div class="profile-card section-card"><div class="profile-header">' +
-        '<div class="profile-avatar-lg">' + initials.toUpperCase() + '</div>' +
-        '<div class="profile-name">' + u.last_name + ' ' + u.first_name + ' ' + (u.middle_name || '') + '</div>' +
-        '<div class="profile-position">' + u.position + '</div>' +
-        '<span class="badge ' + (roleBadges[u.role] || '') + '" style="margin-top:8px">' + (roleMap[u.role] || u.role) + '</span>' +
-        '</div><div style="padding:0 24px 24px">' +
-        '<div class="detail-row"><span class="detail-label">Логин</span><span class="detail-value">' + u.username + '</span></div>' +
-        '<div class="detail-row"><span class="detail-label">ID</span><span class="detail-value">' + u.id + '</span></div>' +
-        '</div></div>';
+    // Формируем ФИО полностью
+    var fullName = u.last_name + ' ' + u.first_name;
+    if (u.middle_name) fullName += ' ' + u.middle_name;
+    
+    // Получаем дату регистрации из localStorage или формируем
+    var registeredAt = localStorage.getItem('user_registered') || '15 января 2025';
+    
+    // Статистика действий пользователя (можно расширить позже)
+    var lastLogin = localStorage.getItem('last_login') || new Date().toLocaleString('ru');
+    localStorage.setItem('last_login', lastLogin);
+
+    var html = `
+        <div class="profile-card section-card">
+            <div class="profile-header">
+                <div class="profile-avatar-lg">${initials.toUpperCase()}</div>
+                <div class="profile-name">${fullName}</div>
+                <div class="profile-position">${u.position || '—'}</div>
+                <span class="badge ${roleBadges[u.role] || ''}" style="margin-top:8px">${roleMap[u.role] || u.role}</span>
+            </div>
+            
+            <div style="padding: 0 24px 24px">
+                <div class="detail-group" style="margin-bottom: 20px">
+                    <div class="detail-group-title">Учётные данные</div>
+                    <div class="detail-row">
+                        <span class="detail-label">Логин</span>
+                        <span class="detail-value">${u.username}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">ID сотрудника</span>
+                        <span class="detail-value">${u.id}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Роль</span>
+                        <span class="detail-value">${roleMap[u.role] || u.role}</span>
+                    </div>
+                </div>
+                
+                <div class="detail-group" style="margin-bottom: 20px">
+                    <div class="detail-group-title">Личная информация</div>
+                    <div class="detail-row">
+                        <span class="detail-label">Фамилия</span>
+                        <span class="detail-value">${u.last_name || '—'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Имя</span>
+                        <span class="detail-value">${u.first_name || '—'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Отчество</span>
+                        <span class="detail-value">${u.middle_name || '—'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Должность</span>
+                        <span class="detail-value">${u.position || '—'}</span>
+                    </div>
+                </div>
+                
+                <div class="detail-group" style="margin-bottom: 20px">
+                    <div class="detail-group-title">Активность</div>
+                    <div class="detail-row">
+                        <span class="detail-label">Последний вход</span>
+                        <span class="detail-value">${lastLogin}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Дата регистрации</span>
+                        <span class="detail-value">${registeredAt}</span>
+                    </div>
+                </div>
+                
+                <div class="detail-group">
+                    <div class="detail-group-title">Права доступа</div>
+                    <div class="detail-row">
+                        <span class="detail-label">${u.role === 'admin' ? '✓ Полный доступ' : (u.role === 'user' ? '✓ Редактирование' : '✓ Только стенды')}</span>
+                    </div>
+                    ${u.role === 'admin' ? '<div class="detail-row"><span class="detail-label">• Управление сотрудниками</span></div>' : ''}
+                    ${u.role === 'admin' ? '<div class="detail-row"><span class="detail-label">• Удаление записей</span></div>' : ''}
+                    ${u.role !== 'operator' ? '<div class="detail-row"><span class="detail-label">• Редактирование справочников</span></div>' : ''}
+                    <div class="detail-row"><span class="detail-label">• Прохождение стендов</span></div>
+                </div>
+                
+                <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); text-align: center">
+                    <button class="btn btn-secondary" onclick="showChangePassword()" style="margin-right: 12px">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        Сменить пароль
+                    </button>
+                    <button class="btn btn-primary" onclick="showContent('devices')">
+                        Перейти к работе
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('contentArea').innerHTML = html;
 }
 
+// Функция для смены пароля
+function showChangePassword() {
+    var html = `
+        <form onsubmit="changePassword(event)">
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label class="form-label">Текущий пароль</label>
+                    <input type="password" class="form-input" name="old_password" required>
+                </div>
+                <div class="form-group full-width">
+                    <label class="form-label">Новый пароль</label>
+                    <input type="password" class="form-input" name="new_password" required minlength="3">
+                </div>
+                <div class="form-group full-width">
+                    <label class="form-label">Подтверждение пароля</label>
+                    <input type="password" class="form-input" name="confirm_password" required>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary">Изменить пароль</button>
+            </div>
+        </form>
+    `;
+    openModal('Смена пароля', html);
+}
 
+async function changePassword(event) {
+    event.preventDefault();
+    var fd = new FormData(event.target);
+    var oldPwd = fd.get('old_password');
+    var newPwd = fd.get('new_password');
+    var confirmPwd = fd.get('confirm_password');
+    
+    if (newPwd !== confirmPwd) {
+        showError('Новый пароль и подтверждение не совпадают');
+        return;
+    }
+    
+    if (newPwd.length < 3) {
+        showError('Пароль должен содержать минимум 3 символа');
+        return;
+    }
+    
+    try {
+        // Проверяем старый пароль
+        var check = await api('/api/check-password', {
+            method: 'POST',
+            body: JSON.stringify({ 
+                user_id: S.user.id, 
+                password: oldPwd 
+            })
+        });
+        
+        if (!check || !check.success) {
+            showError('Неверный текущий пароль');
+            return;
+        }
+        
+        // Меняем пароль
+        await api('/api/change-password', {
+            method: 'POST',
+            body: JSON.stringify({ 
+                user_id: S.user.id, 
+                new_password: newPwd 
+            })
+        });
+        
+        toast('Пароль успешно изменён', 'success');
+        closeModal();
+    } catch (e) {
+        showError(e.message);
+    }
+}
 // ============ USER ============
 async function loadUser() {
     try {
