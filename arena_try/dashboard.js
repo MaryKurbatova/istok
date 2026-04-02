@@ -1512,11 +1512,22 @@ function renderProfile() {
     if (u.middle_name) fullName += ' ' + u.middle_name;
     
     // Получаем дату регистрации из localStorage или формируем
-    var registeredAt = localStorage.getItem('user_registered') || '15 января 2025';
+    var registeredAt = localStorage.getItem('user_registered');
+    if (!registeredAt) {
+        registeredAt = new Date().toLocaleDateString('ru', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+        localStorage.setItem('user_registered', registeredAt);
+    }
     
-    // Статистика действий пользователя (можно расширить позже)
-    var lastLogin = localStorage.getItem('last_login') || new Date().toLocaleString('ru');
-    localStorage.setItem('last_login', lastLogin);
+    // Получаем последний вход из localStorage
+    var lastLogin = localStorage.getItem('last_login');
+    if (!lastLogin) {
+        lastLogin = new Date().toLocaleString('ru');
+        localStorage.setItem('last_login', lastLogin);
+    }
 
     var html = `
         <div class="profile-card section-card">
@@ -1568,11 +1579,15 @@ function renderProfile() {
                     <div class="detail-group-title">Активность</div>
                     <div class="detail-row">
                         <span class="detail-label">Последний вход</span>
-                        <span class="detail-value">${lastLogin}</span>
+                        <span class="detail-value" id="lastLoginValue">${lastLogin}</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Дата регистрации</span>
                         <span class="detail-value">${registeredAt}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Текущая сессия</span>
+                        <span class="detail-value" id="sessionTime">--:--:--</span>
                     </div>
                 </div>
                 
@@ -1604,109 +1619,120 @@ function renderProfile() {
     `;
 
     document.getElementById('contentArea').innerHTML = html;
+    
+    // Запускаем таймер для отображения длительности сессии
+    startSessionTimer();
 }
 
-// Функция для смены пароля
-function showChangePassword() {
-    var html = `
-        <form onsubmit="changePassword(event)">
-            <div class="form-grid">
-                <div class="form-group full-width">
-                    <label class="form-label">Текущий пароль</label>
-                    <input type="password" class="form-input" name="old_password" required>
-                </div>
-                <div class="form-group full-width">
-                    <label class="form-label">Новый пароль</label>
-                    <input type="password" class="form-input" name="new_password" required minlength="3">
-                </div>
-                <div class="form-group full-width">
-                    <label class="form-label">Подтверждение пароля</label>
-                    <input type="password" class="form-input" name="confirm_password" required>
-                </div>
-            </div>
-            <div class="form-actions">
-                <button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-                <button type="submit" class="btn btn-primary">Изменить пароль</button>
-            </div>
-        </form>
-    `;
-    openModal('Смена пароля', html);
+// Глобальная переменная для времени начала сессии
+var sessionStartTime = null;
+
+// Функция для обновления времени последнего входа
+function updateLastLogin() {
+    var now = new Date();
+    var nowStr = now.toLocaleString('ru', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+    localStorage.setItem('last_login', nowStr);
+    
+    var lastLoginEl = document.getElementById('lastLoginValue');
+    if (lastLoginEl) {
+        lastLoginEl.textContent = nowStr;
+    }
 }
 
-async function changePassword(event) {
-    event.preventDefault();
-    var fd = new FormData(event.target);
-    var oldPwd = fd.get('old_password');
-    var newPwd = fd.get('new_password');
-    var confirmPwd = fd.get('confirm_password');
-    
-    if (newPwd !== confirmPwd) {
-        showError('Новый пароль и подтверждение не совпадают');
-        return;
+// Функция для запуска таймера сессии
+function startSessionTimer() {
+    if (!sessionStartTime) {
+        sessionStartTime = new Date();
     }
     
-    if (newPwd.length < 3) {
-        showError('Пароль должен содержать минимум 3 символа');
-        return;
+    var sessionEl = document.getElementById('sessionTime');
+    if (!sessionEl) return;
+    
+    function updateTimer() {
+        if (!sessionStartTime) return;
+        var now = new Date();
+        var diff = Math.floor((now - sessionStartTime) / 1000);
+        var hours = Math.floor(diff / 3600);
+        var minutes = Math.floor((diff % 3600) / 60);
+        var seconds = diff % 60;
+        
+        var timeStr = '';
+        if (hours > 0) timeStr += hours + 'ч ';
+        timeStr += minutes + 'м ' + seconds + 'с';
+        
+        var sessionEl_ = document.getElementById('sessionTime');
+        if (sessionEl_) sessionEl_.textContent = timeStr;
     }
     
-    try {
-        // Проверяем старый пароль
-        var check = await api('/api/check-password', {
-            method: 'POST',
-            body: JSON.stringify({ 
-                user_id: S.user.id, 
-                password: oldPwd 
-            })
-        });
-        
-        if (!check || !check.success) {
-            showError('Неверный текущий пароль');
-            return;
-        }
-        
-        // Меняем пароль
-        await api('/api/change-password', {
-            method: 'POST',
-            body: JSON.stringify({ 
-                user_id: S.user.id, 
-                new_password: newPwd 
-            })
-        });
-        
-        toast('Пароль успешно изменён', 'success');
-        closeModal();
-    } catch (e) {
-        showError(e.message);
-    }
+    updateTimer();
+    // Обновляем каждую секунду
+    if (window.sessionInterval) clearInterval(window.sessionInterval);
+    window.sessionInterval = setInterval(updateTimer, 1000);
 }
+
+// Функция для обновления последнего входа при загрузке страницы
+function updateLastLoginOnLoad() {
+    var now = new Date();
+    var nowStr = now.toLocaleString('ru', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+    localStorage.setItem('last_login', nowStr);
+}
+
+// Вызываем обновление при загрузке страницы (после успешной авторизации)
+// Добавьте эту строку в функцию loadUser() после получения данных пользователя
+
 // ============ USER ============
 async function loadUser() {
     try {
         S.user = await api('/api/current-user');
         if (!S.user) return;
 
+        // Обновляем время последнего входа при каждом входе в систему
+        var now = new Date();
+        var nowStr = now.toLocaleString('ru', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        localStorage.setItem('last_login', nowStr);
+        
+        // Устанавливаем время начала сессии
+        sessionStartTime = new Date();
+
         const initials = (S.user.first_name?.[0] || '') + (S.user.last_name?.[0] || '');
         document.getElementById('userAvatar').textContent = initials.toUpperCase();
         document.getElementById('sidebarUserName').textContent = S.user.last_name + ' ' + (S.user.first_name?.[0] || '') + '.';
 
         const roleMap = { admin: 'Администратор', user: 'Пользователь', operator: 'Оператор' };
-        const roleColors = { admin: '#F87171', user: '#60A5FA', operator: '#FBBF24' };
+        const roleColors = { admin: '#e03131', user: '#e03131', operator: '#e03131' };
         
         const userRoleEl = document.getElementById('sidebarUserRole');
         userRoleEl.textContent = roleMap[S.user.role] || S.user.role;
-        userRoleEl.style.color = roleColors[S.user.role] || '#9B8F82';
+        userRoleEl.style.color = roleColors[S.user.role] || '#e03131';
         
         // Разные права доступа в зависимости от роли
         if (S.user.role === 'admin') {
             document.getElementById('employeesBtn').style.display = '';
-            // Админ видит всё
         } else if (S.user.role === 'user') {
             document.getElementById('employeesBtn').style.display = 'none';
-            // Пользователь видит кнопки редактирования
         } else { // operator
             document.getElementById('employeesBtn').style.display = 'none';
-            // Оператору показываем предупреждение
             toast('Вы вошли как оператор. Доступно только прохождение стендов.', 'info');
         }
 
