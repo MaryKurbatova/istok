@@ -6,6 +6,8 @@ const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
+const QRCode = require('qrcode');
+const PDFDocument = require('pdfkit');
 
 const app = express();
 const PORT = 3000;
@@ -18,9 +20,10 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Static files
 app.use('/images', express.static(path.join(__dirname, 'images')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/stikers', express.static(path.join(__dirname, 'stikers')));
 
-['images', 'uploads'].forEach(dir => {
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+['images', 'uploads', 'stikers'].forEach(dir => {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
 // Database
@@ -67,23 +70,163 @@ function canDelete(req, res, next) {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Недостаточно прав. Только администратор может удалять.' });
     next();
 }
+// ============ ФУНКЦИЯ ГЕНЕРАЦИИ НАКЛЕЙКИ (С ПОДДЕРЖКОЙ КИРИЛЛИЦЫ) ============
+async function generateSimpleStickerPDF(serialNumber, modification = "ISN41508T3", article = "КРПГ.465614.001") {
+    return new Promise(async (resolve, reject) => {
+        let qrImagePath = null;
+        try {
+            const pdfPath = path.join(__dirname, 'stikers', `${serialNumber}-label.pdf`);
+            const doc = new PDFDocument({
+                size: [150, 80],
+                margin: 0
+            });
+            const stream = fs.createWriteStream(pdfPath);
+            doc.pipe(stream);
 
+            // Подключаем шрифт с кириллицей
+            const fontRegularPath = path.join(__dirname, 'Roboto-Regular.ttf');
+            let regularFont = 'Helvetica';
 
-app.post('/loginyara', async (req, res) => {
-    const { username, password } = req.body;
-    try {
-        const [rows] = await db.query('SELECT * FROM employees WHERE username = ? AND password = ?', [username, password]);
-        if (rows.length > 0) {
-            const user = rows[0];
-            res.send({id: user.id, username: user.username, password: user.password, role:user.role});
-        } else {
-            res.send('401');
+            if (fs.existsSync(fontRegularPath)) {
+                doc.registerFont('CustomRegular', fontRegularPath);
+                regularFont = 'CustomRegular';
+                console.log('✅ Шрифт загружен');
+            }
+
+            // Рамка
+            doc.rect(2, 2, doc.page.width - 4, doc.page.height - 4)
+               .lineWidth(0.5)
+               .stroke();
+
+            // Логотип "ИСТОК" — по центру сверху
+            doc.fontSize(12)
+               .font(regularFont)
+               .fillColor('#e03131')
+               .text('ИСТОК', 0, 5, { width: 150, align: 'center' });
+
+            // "АО «НПП «Исток»" — по центру под логотипом
+            doc.fillColor('black')
+               .fontSize(8)
+               .text('АО «НПП «Исток»', 0, 17, { width: 150, align: 'center' });
+
+            // Разделительная линия
+            doc.moveTo(8, 26)
+               .lineTo(142, 26)
+               .lineWidth(0.3)
+               .stroke();
+
+            // Данные — слева, занимают левую часть
+            let yPos = 31;
+            const leftMargin = 8;
+            const labelWidth = 45;
+            const valueStart = 55;
+
+            doc.fontSize(7)
+               .fillColor('black')
+               .font(regularFont);
+
+            // Наименование устройства
+            doc.text('Изделие:', leftMargin, yPos, { width: labelWidth });
+            doc.text(modification, valueStart, yPos, { width: 70 });
+            yPos += 7;
+
+            // Обозначение
+            doc.text('Обозначение:', leftMargin, yPos, { width: labelWidth });
+            doc.text(article, valueStart, yPos, { width: 70 });
+            yPos += 7;
+
+            // Серийный номер
+            doc.text('SN:', leftMargin, yPos, { width: labelWidth });
+            doc.text(serialNumber, valueStart, yPos, { width: 70 });
+            yPos += 7;
+
+            // Технические условия
+            doc.text('ТУ:', leftMargin, yPos, { width: labelWidth });
+            doc.text('КРПГ.465614.001 ТУ', valueStart, yPos, { width: 70 });
+            yPos += 7;
+
+            // Дата изготовления
+            const currentDate = new Date().toLocaleDateString('ru-RU');
+            doc.text('Дата:', leftMargin, yPos, { width: labelWidth });
+            doc.text(currentDate, valueStart, yPos, { width: 70 });
+            yPos += 7;
+
+            // Упаковщик
+            doc.text('Упаковщик:', leftMargin, yPos, { width: labelWidth });
+            doc.text('__________', valueStart, yPos, { width: 70 });
+
+            // QR-код — справа снизу
+            try {
+                const qrBuffer = await QRCode.toBuffer(serialNumber, {
+                    errorCorrectionLevel: 'M',
+                    margin: 1,
+                    width: 200
+                });
+
+                qrImagePath = path.join(__dirname, 'stikers', `temp_qr_${Date.now()}.png`);
+                fs.writeFileSync(qrImagePath, qrBuffer);
+
+                const qrSize = 30;
+                const qrX = 112;
+                const qrY = 35;
+
+                doc.image(qrImagePath, qrX, qrY, {
+                    width: qrSize,
+                    height: qrSize
+                });
+
+            } catch (qrErr) {
+                console.warn('QR не сгенерирован:', qrErr.message);
+            }
+
+            doc.end();
+
+            stream.on('finish', () => {
+                if (qrImagePath && fs.existsSync(qrImagePath)) {
+                    setTimeout(() => {
+                        try { fs.unlinkSync(qrImagePath); } catch (e) {}
+                    }, 1000);
+                }
+                resolve('/stikers/' + `${serialNumber}-label.pdf`);
+            });
+
+            stream.on('error', (err) => {
+                if (qrImagePath && fs.existsSync(qrImagePath)) {
+                    try { fs.unlinkSync(qrImagePath); } catch (e) {}
+                }
+                reject(err);
+            });
+
+        } catch (error) {
+            console.error('Ошибка генерации PDF:', error);
+            reject(error);
         }
-    } catch (error) {
-        console.error('Ошибка БД:', error);
-        res.send('500');
+    });
+}
+
+// Функция для получения артикула по типу устройства
+async function getDeviceArticle(deviceType) {
+    const articles = {
+        "ISN41508T3": "КРПГ.465614.001",
+        "ISN41508T3-M": "КРПГ.465614.001-01",
+        "ISN41508T4": "КРПГ.465614.002",
+        "ISN41508T3-M-AC": "КРПГ.465614.001-03"
+    };
+    
+    try {
+        const [rows] = await db.query(
+            'SELECT code FROM device_type WHERE name LIKE ?',
+            [`%${deviceType}%`]
+        );
+        if (rows.length > 0 && rows[0].code) {
+            return rows[0].code;
+        }
+    } catch (e) {
+        console.warn('Не удалось получить артикул из БД:', e.message);
     }
-});
+    
+    return articles[deviceType] || "КРПГ.465614.001";
+}
 
 // ==========================================
 // CHANGE PASSWORD API
@@ -176,7 +319,6 @@ app.post('/api/logout', auth, (req, res) => {
 // ==========================================
 app.get('/api/devices', auth, async (req, res) => {
     try {
-        // Для оператора - только базовая информация
         if (req.user.role === 'operator') {
             const [rows] = await db.query(`
                 SELECT d.id, d.product_serial_number, d.type, d.current_stage, d.manufactures_date,
@@ -188,7 +330,6 @@ app.get('/api/devices', auth, async (req, res) => {
             return res.json(rows);
         }
         
-        // Для user и admin - полная информация
         const sql = `
             SELECT d.*,
                 dt.name as device_type_name, dt.code as device_type_code,
@@ -237,7 +378,6 @@ app.get('/api/devices', auth, async (req, res) => {
 
 app.get('/api/devices/:id', auth, async (req, res) => {
     try {
-        // Для оператора - только базовая информация
         if (req.user.role === 'operator') {
             const [rows] = await db.query(`
                 SELECT d.id, d.product_serial_number, d.type, d.current_stage, d.manufactures_date,
@@ -369,7 +509,6 @@ app.delete('/api/devices/:id', auth, canDelete, async (req, res) => {
 // ==========================================
 app.get('/api/boards', auth, async (req, res) => {
     try {
-        // Для оператора - только базовая информация
         if (req.user.role === 'operator') {
             const [rows] = await db.query(`
                 SELECT b.id, b.serial_number, b.current_stage, bt.name as board_type_name, bt.code as board_type_code
@@ -403,7 +542,6 @@ app.get('/api/boards', auth, async (req, res) => {
 
 app.get('/api/boards/:id', auth, async (req, res) => {
     try {
-        // Для оператора - только базовая информация
         if (req.user.role === 'operator') {
             const [rows] = await db.query(`
                 SELECT b.id, b.serial_number, b.current_stage, bt.name as board_type_name, bt.code as board_type_code
@@ -480,7 +618,7 @@ app.get('/api/board-types', auth, async (req, res) => {
 });
 
 // ==========================================
-// STANDS API (доступны всем, включая оператора)
+// STANDS API
 // ==========================================
 
 app.post('/api/stands/visual-inspection', auth, async (req, res) => {
@@ -674,22 +812,20 @@ app.post('/api/stands/psi', auth, async (req, res) => {
     }
 });
 
+// ==========================================
+// PACKAGING API С ГЕНЕРАЦИЕЙ НАКЛЕЙКИ
+// ==========================================
 app.post('/api/stands/packaging', auth, async (req, res) => {
     try {
         const { device_serial_number, comment } = req.body;
         const [devices] = await db.query('SELECT * FROM devices WHERE product_serial_number = ?', [device_serial_number]);
         if (!devices.length) return res.status(404).json({ error: 'Устройство не найдено' });
-
+        
         const device = devices[0];
-        if (!device.psi_passed) {
-            return res.status(400).json({ error: 'Не прошло ПСИ!' });
-        }
-        if (device.current_stage !== 'psi_ok') {
-            return res.status(400).json({ error: 'Стадия: ' + device.current_stage + '. Нужна psi_ok' });
-        }
+        if (!device.psi_passed) return res.status(400).json({ error: 'Не прошло ПСИ!' });
+        if (device.current_stage !== 'psi_ok') return res.status(400).json({ error: 'Стадия: ' + device.current_stage + '. Нужна psi_ok' });
 
         const now = new Date();
-
         const [locs] = await db.query("SELECT id FROM location WHERE name = 'Склад готовой продукции' LIMIT 1");
         const locId = locs.length ? locs[0].id : null;
 
@@ -711,11 +847,21 @@ app.post('/api/stands/packaging', auth, async (req, res) => {
             [device.id, device_serial_number, 'Упаковка завершена', 'packaging', req.user.id, now]
         );
 
+        // ГЕНЕРАЦИЯ НАКЛЕЙКИ (С ПОДДЕРЖКОЙ КИРИЛЛИЦЫ)
+        let stickerUrl = null;
+        try {
+            const deviceType = device.type || "ISN41508T3";
+            const article = await getDeviceArticle(deviceType);
+            stickerUrl = await generateSimpleStickerPDF(device_serial_number, deviceType, article);
+        } catch (e) {
+            console.warn('⚠️ Наклейка не сгенерирована:', e.message);
+        }
+
         res.json({
             message: 'Упаковка завершена!',
+            sticker_url: stickerUrl,
             device_id: device.id,
-            passport: { serial_number: device_serial_number, date: now.toISOString(), type: device.type },
-            label: { serial_number: device_serial_number, date: now.toISOString() }
+            device_serial_number: device_serial_number
         });
     } catch (e) {
         console.error('Packaging error:', e);
@@ -724,7 +870,7 @@ app.post('/api/stands/packaging', auth, async (req, res) => {
 });
 
 // ==========================================
-// REFERENCES API (только для user и admin)
+// REFERENCES API
 // ==========================================
 app.get('/api/device-types', auth, async (req, res) => {
     try { const [r] = await db.query('SELECT * FROM device_type ORDER BY name'); res.json(r); }
@@ -782,7 +928,7 @@ app.get('/api/iso', auth, async (req, res) => {
 });
 
 // ==========================================
-// EMPLOYEES API (только для admin)
+// EMPLOYEES API
 // ==========================================
 app.get('/api/employees', auth, adminOnly, async (req, res) => {
     try { const [r] = await db.query('SELECT id, last_name, first_name, middle_name, position, username, role, created_at FROM employees ORDER BY last_name'); res.json(r); }
