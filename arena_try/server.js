@@ -494,6 +494,13 @@ app.put('/api/devices/:id', auth, canEdit, async (req, res) => {
     }
 });
 
+app.put('/api/production-places/:id', auth, adminOnly, async (req, res) => {
+  try {
+    await db.query('UPDATE place_of_production SET name=?, code=? WHERE id=?', [req.body.name, req.body.code, req.params.id]);
+    res.json({ message: 'Обновлено' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.delete('/api/devices/:id', auth, canDelete, async (req, res) => {
     try {
         await db.query('UPDATE boards SET device_id = NULL WHERE device_id = ?', [req.params.id]);
@@ -990,8 +997,17 @@ app.get('/api/statistics', auth, async (req, res) => {
 // IMAGE UPLOAD
 // ==========================================
 app.post('/api/upload-image', auth, canEdit, upload.single('image'), (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
+    if (!req.file) {
+        return res.status(400).json({ error: 'Файл не загружен' });
+    }
     res.json({ path: '/uploads/' + req.file.filename });
+});
+
+app.put('/api/production-places/:id', auth, adminOnly, async (req, res) => {
+  try {
+    await db.query('UPDATE place_of_production SET name=?, code=? WHERE id=?', [req.body.name, req.body.code, req.params.id]);
+    res.json({ message: 'Обновлено' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ==========================================

@@ -25,6 +25,64 @@ const S = {
     availableDevicesForPSI: []
 };
 
+// ============ ЗАГРУЗКА ИЗОБРАЖЕНИЯ (глобальная функция) ============
+async function previewDeviceImage() {
+    const input = document.getElementById('deviceImageInput');
+    const preview = document.getElementById('imagePreview');
+    const hiddenInput = document.getElementById('uploadedImagePath');
+    
+    if (!input || !preview || !hiddenInput) {
+        console.error('Элементы не найдены');
+        return;
+    }
+    
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        
+        // Проверка размера файла (макс 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            toast('Файл слишком большой (макс. 5MB)', 'error');
+            return;
+        }
+        
+        // Показываем предпросмотр
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.innerHTML = '<img src="' + e.target.result + '" style="max-width:200px;max-height:200px;border-radius:8px;margin-top:8px;">';
+        };
+        reader.readAsDataURL(file);
+        
+        // Загружаем на сервер
+        try {
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            const response = await fetch('/api/upload-image', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + S.token
+                },
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error('Ошибка загрузки: ' + response.status);
+            }
+            
+            const data = await response.json();
+            if (data.path) {
+                hiddenInput.value = data.path;
+                toast('Изображение загружено', 'success');
+            } else {
+                throw new Error('Путь не получен');
+            }
+        } catch (e) {
+            console.error('Upload error:', e);
+            toast('Ошибка загрузки: ' + e.message, 'error');
+        }
+    }
+}
+
 // ============ Error Dialog ============
 function showError(message, title = 'Ошибка') {
     const dialog = document.getElementById('errorDialog');
@@ -345,6 +403,17 @@ function renderPipeline(currentStage, isBoard) {
     return html;
 }
 
+function getPlaceIcon(name) {
+    if (!name) return 'LOC';
+    var n = name.toLowerCase();
+    if (n.indexOf('цех') !== -1) return 'ЦЕХ';
+    if (n.indexOf('исток') !== -1) return 'ИСТ';
+    if (n.indexOf('ооо') !== -1) return 'ООО';
+    if (n.indexOf('склад') !== -1) return 'СКЛ';
+    if (n.indexOf('лаборатор') !== -1) return 'ЛАБ';
+    return 'LOC';
+}
+
 // ============ DEVICES ============
 async function loadDevices() {
     var content = document.getElementById('contentArea');
@@ -573,23 +642,40 @@ async function showAddDevice(data) {
     html += '<div class="form-group"><label class="form-label">Модификация</label><input class="form-input" name="type" value="' + (d.type || '') + '"></div>';
     html += '<div class="form-group"><label class="form-label">Дата производства</label><input class="form-input" type="date" name="manufactures_date" value="' + (d.manufactures_date || '') + '"></div>';
     html += '<div class="form-group"><label class="form-label">Место</label><select class="form-select" name="place_of_production_id"><option value="">—</option>' + makeSelectOptions(S.productionPlaces, 'code', 'name', d.place_of_production_id) + '</select></div>';
-    html += '<div class="form-group"><label class="form-label">Расположение</label><select class="form-select" name="actual_location_id"><option value="">—</option>' + makeSelectOptions(S.locations, '', 'name', d.actual_location_id) + '</select></div>';
+    html += '<div class="form-group"><label class="form-label">Расположениые</label><select class="form-select" name="actual_location_id"><option value="">—</option>' + makeSelectOptions(S.locations, '', 'name', d.actual_location_id) + '</select></div>';
     html += '<div class="form-group"><label class="form-label">Версия ОС</label><input class="form-input" name="version_os" value="' + (d.version_os || '') + '"></div>';
-    html += '<div class="form-group"><label class="form-label">Изображение</label><input class="form-input" name="image_path" value="' + (d.image_path || '') + '" placeholder="/images/ISN41508T3.png"></div>';
-    html += '</div>';
+    html += ' <div class="form-group"> <label class="form-label">Изображение</label> <input type="file" id="deviceImageInput" class="form-input" accept="image/*" onchange="previewDeviceImage()"> </div>';
+    html += ' <div id="imagePreview" style="margin-top:10px;text-align:center"> </div>';
+    html += ' <input type="hidden" id="uploadedImagePath" name="image_path" value="' + (d.image_path || '') + '">';
     html += '<div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button><button type="submit" class="btn btn-primary">' + (d.id ? 'Сохранить' : 'Создать') + '</button></div>';
     html += '</form>';
 
     openModal(title, html);
+    if (d.image_path) {
+    setTimeout(function() {
+        document.getElementById('uploadedImagePath').value = d.image_path;
+        document.getElementById('imagePreview').innerHTML = 
+            '<img src="' + d.image_path + '" style="max-width:200px;max-height:200px;border-radius:8px;margin-top:8px;">' +
+            '<p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Текущее изображение</p>';
+    }, 100);
+}
 }
 
 async function saveDevice(event, deviceId) {
     event.preventDefault();
     var formData = new FormData(event.target);
     var data = {};
-    formData.forEach(function (value, key) { data[key] = value; });
+    formData.forEach(function (value, key) { 
+        if (value) data[key] = value; 
+    });
+    
+    // Добавляем путь к загруженному изображению
+    const uploadedPath = document.getElementById('uploadedImagePath')?.value;
+    if (uploadedPath) {
+        data.image_path = uploadedPath;
+    }
+    
     data.diag = false;
-
     var nullFields = ['place_of_production_id', 'production_month_id', 'production_year_id', 'production_stage_id', 'actual_location_id', 'bmc_id', 'uboot_id', 'iso_id'];
     for (var i = 0; i < nullFields.length; i++) {
         if (!data[nullFields[i]]) data[nullFields[i]] = null;
@@ -683,7 +769,7 @@ async function loadBoards() {
             html += '</tr>';
         }
 
-        html += '</tbody>}</div></div>';
+        html += ' </tbody > </div > </div >';
         content.innerHTML = html;
     } catch (e) {
         content.innerHTML = '<div class="empty-state"><p>Ошибка: ' + e.message + '</p></div>';
@@ -1339,34 +1425,67 @@ async function deleteRepairDevice(id) {
 
 // ============ REFERENCES ============
 async function loadDeviceTypes() {
-    var content = document.getElementById('contentArea');
-    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+  const content = document.getElementById('contentArea');
+  content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка типов...</p></div>';
 
-    try {
-        var types = await api('/api/device-types');
-        S.deviceTypes = types || [];
-        var isAdmin = S.user && S.user.role === 'admin';
+  try {
+    const types = await api('/api/device-types');
+    S.deviceTypes = types || [];
+    const isAdmin = S.user && S.user.role === 'admin';
 
-        var html = '<div class="action-panel">';
-        if (isAdmin) html += '<button class="btn btn-primary" onclick="showAddType()">+ Добавить</button>';
-        html += '</div>';
+    // Формируем HTML с карточками
+    let html = `
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-info"><span class="stat-value">${types.length}</span><span class="stat-label">Типов изделий</span></div>
+        </div>
+      </div>
 
-        html += '<div class="table-card"><div class="table-wrapper"><table class="data-table"><thead><tr><th>Код</th><th>Название</th>';
-        if (isAdmin) html += '<th>Действия</th>';
-        html += '</tr></thead><tbody>';
+      <div class="action-panel">
+        <div class="search-input-wrap" style="flex:1;max-width:400px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" class="search-input" placeholder="Поиск по коду или названию..." oninput="filterTypes(this.value)" id="typeSearch">
+        </div>
+        ${isAdmin ? '<button class="btn btn-primary" onclick="showAddType()">+ Добавить тип</button>' : ''}
+      </div>
 
-        for (var i = 0; i < S.deviceTypes.length; i++) {
-            var t = S.deviceTypes[i];
-            html += '<tr><td><span class="badge badge-info">' + t.code + '</span></td><td>' + t.name + '</td>';
-            if (isAdmin) html += '<td><button class="btn-icon danger" onclick="deleteType(' + t.id + ')">✕</button></td>';
-            html += '</tr>';
-        }
+      <div class="types-grid" id="typesGrid">
+        ${types.map(t => `
+          <div class="type-card" data-code="${t.code}" data-name="${t.name}">
+            <div class="type-code-display"><h3>${t.code}</h3></div>
+            <div class="type-info"><p>${t.name}</p></div>
+            ${isAdmin ? `<div class="type-actions"><button class="btn-icon danger" onclick="deleteType(${t.id})" title="Удалить">✕</button></div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    `;
 
-        html += '</tbody>}</div></div>';
-        content.innerHTML = html;
-    } catch (e) {
-        content.innerHTML = '<div class="empty-state"><p>Ошибка</p></div>';
+    if (!types.length) {
+      html = `
+        <div class="places-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          <h3>Типы изделий не найдены</h3>
+          <p>Добавьте первый тип устройства, чтобы начать работу</p>
+          ${isAdmin ? '<button class="btn btn-primary" onclick="showAddType()">+ Создать тип</button>' : ''}
+        </div>
+      `;
     }
+
+    content.innerHTML = html;
+  } catch (e) {
+    content.innerHTML = `<div class="empty-state"><p>Ошибка загрузки: ${e.message}</p><button class="btn btn-primary" onclick="loadDeviceTypes()">Повторить</button></div>`;
+  }
+}
+
+// Функция поиска (добавить после loadDeviceTypes)
+function filterTypes(val) {
+  const search = (val || '').toLowerCase();
+  document.querySelectorAll('.type-card').forEach(card => {
+    const code = card.getAttribute('data-code') || '';
+    const name = card.getAttribute('data-name') || '';
+    const match = code.toLowerCase().includes(search) || name.toLowerCase().includes(search);
+    card.style.display = match ? '' : 'none';
+  });
 }
 
 function showAddType() {
@@ -1395,79 +1514,249 @@ async function deleteType(id) {
     catch (e) { showError(e.message); }
 }
 
+// ============ МЕСТА ПРОИЗВОДСТВА (СТАБИЛЬНАЯ ВЕРСИЯ) ============
 async function loadProductionPlaces() {
-    var content = document.getElementById('contentArea');
-    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+  const content = document.getElementById('contentArea');
+  content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка мест...</p></div>';
 
-    try {
-        var places = await api('/api/production-places');
-        S.productionPlaces = places || [];
-        var isAdmin = S.user && S.user.role === 'admin';
+  try {
+    const places = await api('/api/production-places');
+    // Загружаем устройства отдельно, чтобы не ронять весь блок при ошибке
+    let devices = [];
+    try { devices = await api('/api/devices') || []; } catch(e) { console.warn('Не удалось загрузить устройства для статистики:', e); }
+    
+    S.productionPlaces = places || [];
+    const placeStats = {};
+    devices.forEach(d => {
+      if (d.place_of_production_id) placeStats[d.place_of_production_id] = (placeStats[d.place_of_production_id] || 0) + 1;
+    });
 
-        var html = '<div class="action-panel">';
-        if (isAdmin) html += '<button class="btn btn-primary" onclick="showAddPlace()">+ Добавить</button>';
-        html += '</div>';
+    const isAdmin = S.user && S.user.role === 'admin';
+    let html = `
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-info"><span class="stat-value">${places.length}</span><span class="stat-label">Всего мест</span></div></div>
+        <div class="stat-card"><div class="stat-info"><span class="stat-value">${Object.keys(placeStats).length}</span><span class="stat-label">Активных</span></div></div>
+      </div>
+      <div class="action-panel">
+        <div class="search-input-wrap" style="flex:1;max-width:400px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" class="search-input" placeholder="Поиск по названию или коду..." oninput="filterPlaces(this.value)" id="placeSearch">
+        </div>
+        ${isAdmin ? '<button class="btn btn-primary" onclick="showAddPlace()">+ Добавить место</button>' : ''}
+      </div>
+      <div class="places-grid" id="placesGrid">${renderPlaceCards(places, placeStats, isAdmin)}</div>
+    `;
 
-        html += '<div class="table-card"><div class="table-wrapper"><table class="data-table"><thead><tr><th>Код</th><th>Название</th>';
-        if (isAdmin) html += '<th>Действия</th>';
-        html += '</tr></thead><tbody>';
-
-        for (var i = 0; i < S.productionPlaces.length; i++) {
-            var p = S.productionPlaces[i];
-            html += '<tr><td><span class="badge badge-neutral">' + p.code + '</span></td><td>' + p.name + '</td>';
-            if (isAdmin) html += '<td><button class="btn-icon danger" onclick="deletePlace(' + p.id + ')">✕</button></td>';
-            html += '</tr>';
-        }
-
-        html += '</tbody>}</div></div>';
-        content.innerHTML = html;
-    } catch (e) {
-        content.innerHTML = '<div class="empty-state"><p>Ошибка</p></div>';
+    if (!places.length) {
+      html = `<div class="places-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        <h3>Места производства не найдены</h3>
+        <p>Добавьте первое производственное место, чтобы начать работу</p>
+        ${isAdmin ? '<button class="btn btn-primary" onclick="showAddPlace()">+ Создать место</button>' : ''}
+      </div>`;
     }
+    content.innerHTML = html;
+  } catch (e) {
+    content.innerHTML = `<div class="empty-state"><p>Ошибка загрузки: ${e.message}</p><button class="btn btn-primary" onclick="loadProductionPlaces()">Повторить</button></div>`;
+  }
+}
+
+function renderPlaceCards(places, stats, isAdmin) {
+  if (!places.length) return '';
+  return places.map(p => {
+    const count = stats[p.id] || 0;
+    const isActive = count > 0;
+    return `
+      <div class="place-card" data-id="${p.id}" data-name="${p.name}" data-code="${p.code}">
+        <div class="place-header">
+          <div class="place-icon">${getPlaceIcon(p.name)}</div>
+          <div class="place-title">
+            <span class="place-code">${p.code || '—'}</span>
+            <h4>${p.name || 'Без названия'}</h4>
+          </div>
+          <div class="place-status ${isActive ? 'active' : 'inactive'}" title="${isActive ? 'Используется' : 'Не активно'}"></div>
+        </div>
+        <div class="place-stats">
+          <div class="stat-item"><span class="stat-value">${count}</span><span class="stat-label">Устройств</span></div>
+          <div class="stat-item"><span class="stat-value">${isActive ? '100%' : '0%'}</span><span class="stat-label">Загрузка</span></div>
+        </div>
+        ${isAdmin ? `
+          <div class="place-actions">
+            <button class="btn-icon" onclick="showEditPlace(${p.id})" title="Редактировать">✎</button>
+            <button class="btn-icon danger" onclick="deletePlace(${p.id})" title="Удалить">✕</button>
+          </div>
+        ` : ''}
+      </div>`;
+  }).join('');
+}
+
+function filterPlaces(val) {
+  const search = (val || '').toLowerCase();
+  document.querySelectorAll('.place-card').forEach(card => {
+    const name = card.getAttribute('data-name') || '';
+    const code = card.getAttribute('data-code') || '';
+    card.style.display = (name.toLowerCase().includes(search) || code.toLowerCase().includes(search)) ? '' : 'none';
+  });
 }
 
 function showAddPlace() {
-    openModal('Новое место',
-        '<form onsubmit="savePlace(event)"><div class="form-grid">' +
-        '<div class="form-group"><label class="form-label">Код *</label><input class="form-input" name="code" required></div>' +
-        '<div class="form-group"><label class="form-label">Название *</label><input class="form-input" name="name" required></div>' +
-        '</div><div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button><button type="submit" class="btn btn-primary">Создать</button></div></form>'
-    );
+  openModal('Новое место производства', `
+    <form onsubmit="savePlace(event)" style="padding:20px;">
+      <div class="form-group" style="margin-bottom:16px;">
+        <label class="form-label">Код *</label>
+        <input class="form-input" name="code" required placeholder="Например: 01" pattern="[0-9]{2}" maxlength="2" style="text-transform:uppercase">
+        <small style="color:var(--text-muted);margin-top:4px;display:block;">2 цифры</small>
+      </div>
+      <div class="form-group" style="margin-bottom:20px;">
+        <label class="form-label">Название *</label>
+        <input class="form-input" name="name" required placeholder="Полное наименование">
+      </div>
+      <div class="form-actions" style="margin-top:0;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+        <button type="submit" class="btn btn-primary">Создать</button>
+      </div>
+    </form>
+  `);
 }
 
-async function savePlace(e) {
-    e.preventDefault();
-    var fd = new FormData(e.target);
-    try {
-        await api('/api/production-places', { method: 'POST', body: JSON.stringify({ name: fd.get('name'), code: fd.get('code') }) });
-        toast('Добавлено', 'success');
-        closeModal();
-        loadProductionPlaces();
-    } catch (err) { showError(err.message); }
+function showEditPlace(id) {
+  const place = S.productionPlaces.find(p => p.id === id);
+  if (!place) return;
+  openModal('Редактировать место', `
+    <form onsubmit="savePlace(event, ${id})" style="padding:20px;">
+      <div class="form-group" style="margin-bottom:16px;">
+        <label class="form-label">Код *</label>
+        <input class="form-input" name="code" required value="${place.code}" pattern="[0-9]{2}" maxlength="2" style="text-transform:uppercase">
+      </div>
+      <div class="form-group" style="margin-bottom:20px;">
+        <label class="form-label">Название *</label>
+        <input class="form-input" name="name" required value="${place.name}">
+      </div>
+      <div class="form-actions" style="margin-top:0;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+      </div>
+    </form>
+  `);
 }
 
-async function deletePlace(id) {
-    if (!confirm('Удалить?')) return;
-    try { await api('/api/production-places/' + id, { method: 'DELETE' }); toast('Удалено', 'success'); loadProductionPlaces(); }
-    catch (e) { showError(e.message); }
+async function savePlace(e, id = null) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const data = { name: fd.get('name'), code: fd.get('code') };
+  try {
+    if (id) await api('/api/production-places/' + id, { method: 'PUT', body: JSON.stringify(data) });
+    else await api('/api/production-places', { method: 'POST', body: JSON.stringify(data) });
+    toast(id ? 'Место обновлено' : 'Место добавлено', 'success');
+    closeModal();
+    loadProductionPlaces();
+  } catch (err) { showError(err.message); }
 }
 
 function renderSerialStructure() {
-    document.getElementById('contentArea').innerHTML = `
-        <div class="section-card"><h3>Формат серийного номера</h3>
-        <p style="color:var(--text-secondary);margin-bottom:24px">Пример: <strong>RS501175220001</strong></p>
-        <div style="text-align:center;margin-bottom:40px"><div class="serial-structure">
-            <div class="serial-segment seg-type" data-label="Тип">RS</div>
-            <div class="serial-segment seg-stage" data-label="Этап">5</div>
-            <div class="serial-segment seg-place" data-label="Место">01</div>
-            <div class="serial-segment seg-prod" data-label="Код">17</div>
-            <div class="serial-segment seg-year" data-label="Год">52</div>
-            <div class="serial-segment seg-month" data-label="Месяц">20</div>
-            <div class="serial-segment seg-seq" data-label="Последовательный">001</div>
-        </div></div></div>
-        <div class="detail-grid">
-            <div class="section-card"><h3>Тип</h3><div class="detail-row"><span class="detail-label">RS</span><span class="detail-value">Маршрутизатор</span></div><div class="detail-row"><span class="detail-label">SA</span><span class="detail-value">Коммутатор</span></div></div>
-            <div class="section-card"><h3>Этап</h3><div class="detail-row"><span class="detail-label">1-2</span><span class="detail-value">Опытный образец</span></div><div class="detail-row"><span class="detail-label">3-4</span><span class="detail-value">Отладка</span></div><div class="detail-row"><span class="detail-label">5</span><span class="detail-value">Серийное</span></div></div>
+    const content = document.getElementById('contentArea');
+    
+    // SVG иконки для красоты
+    const iconHash = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><line x1="10" y1="3" x2="8" y2="21"></line><line x1="16" y1="3" x2="14" y2="21"></line></svg>`;
+    const iconCalendar = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`;
+    const iconLayers = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>`;
+    const iconMap = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></svg>`;
+
+    content.innerHTML = `
+        <div class="serial-header">
+            <h3>Формат серийного номера</h3>
+            <div class="serial-example-badge">RS501175220001</div>
+        </div>
+
+        <!-- Визуальные блоки -->
+        <div class="serial-structure-visual">
+            <div class="serial-segment">
+                <div class="serial-segment-box">RS</div>
+                <div class="serial-segment-label">Тип</div>
+            </div>
+            <div class="serial-segment">
+                <div class="serial-segment-box">5</div>
+                <div class="serial-segment-label">Этап</div>
+            </div>
+            <div class="serial-segment">
+                <div class="serial-segment-box">01</div>
+                <div class="serial-segment-label">Место</div>
+            </div>
+            <div class="serial-segment">
+                <div class="serial-segment-box">17</div>
+                <div class="serial-segment-label">Код</div>
+            </div>
+            <div class="serial-segment">
+                <div class="serial-segment-box">52</div>
+                <div class="serial-segment-label">Год</div>
+            </div>
+            <div class="serial-segment">
+                <div class="serial-segment-box">20</div>
+                <div class="serial-segment-label">Месяц</div>
+            </div>
+            <div class="serial-segment">
+                <div class="serial-segment-box">001</div>
+                <div class="serial-segment-label">Номер</div>
+            </div>
+        </div>
+
+        <!-- Карточки с пояснениями -->
+        <div class="serial-info-grid">
+            <!-- Карточка 1 -->
+            <div class="serial-info-card">
+                <h4>${iconHash} Тип устройства</h4>
+                <div class="serial-info-row">
+                    <span class="info-code">RS</span>
+                    <span class="info-desc">Маршрутизатор</span>
+                </div>
+                <div class="serial-info-row">
+                    <span class="info-code">SA</span>
+                    <span class="info-desc">Коммутатор</span>
+                </div>
+            </div>
+
+            <!-- Карточка 2 -->
+            <div class="serial-info-card">
+                <h4>${iconLayers} Этап производства</h4>
+                <div class="serial-info-row">
+                    <span class="info-code">1-2</span>
+                    <span class="info-desc">Опытный образец</span>
+                </div>
+                <div class="serial-info-row">
+                    <span class="info-code">3-4</span>
+                    <span class="info-desc">Отладка</span>
+                </div>
+                <div class="serial-info-row">
+                    <span class="info-code">5</span>
+                    <span class="info-desc">Серийное производство</span>
+                </div>
+            </div>
+
+            <!-- Карточка 3 -->
+            <div class="serial-info-card">
+                <h4>${iconMap} Место производства</h4>
+                <div class="serial-info-row">
+                    <span class="info-code">01</span>
+                    <span class="info-desc">АО «НПП «Исток»</span>
+                </div>
+                <div class="serial-info-row">
+                    <span class="info-code">02</span>
+                    <span class="info-desc">Другой филиал</span>
+                </div>
+            </div>
+
+            <!-- Карточка 4 -->
+            <div class="serial-info-card">
+                <h4>${iconCalendar} Дата выпуска</h4>
+                <div class="serial-info-row">
+                    <span class="info-code">Год</span>
+                    <span class="info-desc">Неделя производства (52)</span>
+                </div>
+                <div class="serial-info-row">
+                    <span class="info-code">Месяц</span>
+                    <span class="info-desc">Месяц (20)</span>
+                </div>
+            </div>
         </div>
     `;
 }
@@ -1573,7 +1862,7 @@ async function loadEmployees() {
             html += '</div></td></tr>';
         }
 
-        html += '</tbody>}</div></div>';
+        html += '</tbody></div></div>';
         content.innerHTML = html;
     } catch (e) {
         content.innerHTML = '<div class="empty-state"><p>Ошибка</p></div>';
