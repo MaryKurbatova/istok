@@ -1,3 +1,4 @@
+
 // ============ STATE ============
 const S = {
     user: null,
@@ -39,20 +40,17 @@ async function previewDeviceImage() {
     if (input.files && input.files[0]) {
         const file = input.files[0];
         
-        // Проверка размера файла (макс 5MB)
         if (file.size > 5 * 1024 * 1024) {
             toast('Файл слишком большой (макс. 5MB)', 'error');
             return;
         }
         
-        // Показываем предпросмотр
         const reader = new FileReader();
         reader.onload = function(e) {
             preview.innerHTML = '<img src="' + e.target.result + '" style="max-width:200px;max-height:200px;border-radius:8px;margin-top:8px;">';
         };
         reader.readAsDataURL(file);
         
-        // Загружаем на сервер
         try {
             const formData = new FormData();
             formData.append('image', file);
@@ -86,13 +84,28 @@ async function previewDeviceImage() {
 // ============ Error Dialog ============
 function showError(message, title = 'Ошибка') {
     const dialog = document.getElementById('errorDialog');
-    document.getElementById('errorTitle').textContent = title;
-    document.getElementById('errorMessage').textContent = message;
+    if (!dialog) return;
+    const titleEl = document.getElementById('errorTitle');
+    const messageEl = document.getElementById('errorMessage');
+    if (titleEl) titleEl.textContent = title;
+    if (messageEl) messageEl.textContent = message;
     dialog.classList.add('active');
 }
 
 function closeErrorDialog() {
-    document.getElementById('errorDialog').classList.remove('active');
+    const dialog = document.getElementById('errorDialog');
+    if (dialog) dialog.classList.remove('active');
+}
+
+// ============ ESCAPE HTML ============
+function escapeHtml(str) {
+    if (!str) return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 // ============ INIT ============
@@ -180,30 +193,41 @@ async function loadUser() {
         window.sessionStartTime = new Date();
 
         const initials = (S.user.first_name?.[0] || '') + (S.user.last_name?.[0] || '');
-        document.getElementById('userAvatar').textContent = initials.toUpperCase();
-        document.getElementById('sidebarUserName').textContent = S.user.last_name + ' ' + (S.user.first_name?.[0] || '') + '.';
+        const userAvatar = document.getElementById('userAvatar');
+        const sidebarUserName = document.getElementById('sidebarUserName');
+        const sidebarUserRole = document.getElementById('sidebarUserRole');
+        
+        if (userAvatar) userAvatar.textContent = initials.toUpperCase();
+        if (sidebarUserName) sidebarUserName.textContent = S.user.last_name + ' ' + (S.user.first_name?.[0] || '') + '.';
 
         const roleMap = { admin: 'Администратор', user: 'Пользователь', operator: 'Оператор' };
         const roleColors = { admin: '#e03131', user: '#e03131', operator: '#e03131' };
         
-        const userRoleEl = document.getElementById('sidebarUserRole');
-        userRoleEl.textContent = roleMap[S.user.role] || S.user.role;
-        userRoleEl.style.color = roleColors[S.user.role] || '#e03131';
+        if (sidebarUserRole) {
+            sidebarUserRole.textContent = roleMap[S.user.role] || S.user.role;
+            sidebarUserRole.style.color = roleColors[S.user.role] || '#e03131';
+        }
         
-        if (S.user.role === 'admin') {
-            document.getElementById('employeesBtn').style.display = '';
-        } else if (S.user.role === 'user') {
-            document.getElementById('employeesBtn').style.display = 'none';
-        } else {
-            document.getElementById('employeesBtn').style.display = 'none';
+        const employeesBtn = document.getElementById('employeesBtn');
+        if (employeesBtn) {
+            if (S.user.role === 'admin') {
+                employeesBtn.style.display = '';
+            } else {
+                employeesBtn.style.display = 'none';
+            }
+        }
+        
+        if (S.user.role === 'operator') {
             toast('Вы вошли как оператор. Доступно только прохождение стендов.', 'info');
         }
 
         showContent('devices');
     } catch (e) {
         console.error('loadUser failed:', e);
-        document.getElementById('contentArea').innerHTML =
-            '<div class="empty-state"><p>Ошибка загрузки пользователя: ' + e.message + '</p></div>';
+        const contentArea = document.getElementById('contentArea');
+        if (contentArea) {
+            contentArea.innerHTML = '<div class="empty-state"><p>Ошибка загрузки пользователя: ' + e.message + '</p></div>';
+        }
     }
 }
 
@@ -221,12 +245,14 @@ function toggleTheme() {
 }
 
 function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open');
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) sidebar.classList.toggle('open');
 }
 
 // ============ TOAST ============
 function toast(msg, type = 'info') {
     const c = document.getElementById('toastContainer');
+    if (!c) return;
     const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
     const t = document.createElement('div');
     t.className = 'toast toast-' + type;
@@ -240,23 +266,24 @@ function toast(msg, type = 'info') {
 
 // ============ MODAL ============
 function openModal(title, html) {
-    document.getElementById('modalTitle').textContent = title;
-    document.getElementById('modalBody').innerHTML = html;
-    document.getElementById('modalOverlay').classList.add('active');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalBody = document.getElementById('modalBody');
+    const modalOverlay = document.getElementById('modalOverlay');
+    if (modalTitle) modalTitle.textContent = title;
+    if (modalBody) modalBody.innerHTML = html;
+    if (modalOverlay) modalOverlay.classList.add('active');
 }
 
 function closeModal(e) {
     if (e && e.target !== e.currentTarget) return;
-    document.getElementById('modalOverlay').classList.remove('active');
+    const modalOverlay = document.getElementById('modalOverlay');
+    if (modalOverlay) modalOverlay.classList.remove('active');
 }
 
 // ============ УПРАВЛЕНИЕ СКАНЕРОМ ============
-// Перехватывает Enter, чтобы не отправлялась форма, а переключалось поле
 function handleScannerKey(event) {
     if (event.key === 'Enter') {
-        // Блокируем стандартное поведение (отправку формы)
         event.preventDefault();
-        // Переходим к следующему полю
         focusNextField(event.target);
     }
 }
@@ -264,10 +291,8 @@ function handleScannerKey(event) {
 function focusNextField(currentElement) {
     const form = currentElement.closest('form');
     if (!form) return;
-    // Собираем все поля ввода в форме
     const inputs = Array.from(form.querySelectorAll('input:not([type="submit"]):not([type="button"]), textarea, select'));
     const index = inputs.indexOf(currentElement);
-    // Если есть следующее поле, ставим туда фокус
     if (index > -1 && index < inputs.length - 1) {
         inputs[index + 1].focus();
     }
@@ -282,7 +307,8 @@ function showContent(section) {
     if (navItem) navItem.classList.add('active');
 
     if (window.innerWidth <= 1024) {
-        document.getElementById('sidebar').classList.remove('open');
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar) sidebar.classList.remove('open');
     }
 
     const titles = {
@@ -301,7 +327,8 @@ function showContent(section) {
         'profile': 'Профиль',
         'employees': 'Сотрудники'
     };
-    document.getElementById('pageTitle').textContent = titles[section] || section;
+    const pageTitle = document.getElementById('pageTitle');
+    if (pageTitle) pageTitle.textContent = titles[section] || section;
 
     switch (section) {
         case 'devices': loadDevices(); break;
@@ -319,8 +346,10 @@ function showContent(section) {
         case 'stand-packaging': renderStandPackaging(); break;
         case 'repair': loadRepairItems(); break;
         default:
-            document.getElementById('contentArea').innerHTML =
-                '<div class="empty-state"><p>Раздел в разработке</p></div>';
+            const contentArea = document.getElementById('contentArea');
+            if (contentArea) {
+                contentArea.innerHTML = '<div class="empty-state"><p>Раздел в разработке</p></div>';
+            }
     }
 }
 
@@ -404,19 +433,16 @@ function renderPipeline(currentStage, isBoard) {
 }
 
 function getPlaceIcon(name) {
-    if (!name) return 'LOC';
-    var n = name.toLowerCase();
-    if (n.indexOf('цех') !== -1) return 'ЦЕХ';
-    if (n.indexOf('исток') !== -1) return 'ИСТ';
-    if (n.indexOf('ооо') !== -1) return 'ООО';
-    if (n.indexOf('склад') !== -1) return 'СКЛ';
-    if (n.indexOf('лаборатор') !== -1) return 'ЛАБ';
-    return 'LOC';
+    return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+            </svg>`;
 }
 
 // ============ DEVICES ============
 async function loadDevices() {
     var content = document.getElementById('contentArea');
+    if (!content) return;
     content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка устройств...</p></div>';
 
     try {
@@ -436,12 +462,13 @@ async function loadDevices() {
 
 function renderDevicesPage() {
     var content = document.getElementById('contentArea');
+    if (!content) return;
     var canEditFlag = S.user && S.user.role !== 'operator';
 
     var typeOptions = '';
     for (var i = 0; i < S.deviceTypes.length; i++) {
         var t = S.deviceTypes[i];
-        typeOptions += '<option value="' + t.code + '">' + t.name + ' (' + t.code + ')</option>';
+        typeOptions += '<option value="' + t.code + '">' + escapeHtml(t.name) + ' (' + t.code + ')</option>';
     }
 
     var rsCount = 0, saCount = 0, packagedCount = 0;
@@ -496,10 +523,10 @@ function renderDeviceCards() {
         var typeBadge = d.device_type_code === 'RS' ? 'badge-info' : 'badge-success';
 
         html += '<div class="device-card" onclick="showDeviceDetails(' + d.id + ')">';
-        html += '<img class="device-card-img" src="' + img + '" alt="' + (d.type || '') + '" onerror="this.src=\'/images/ISN41508T3.png\'">';
+        html += '<img class="device-card-img" src="' + img + '" alt="' + escapeHtml(d.type || '') + '" onerror="this.src=\'/images/ISN41508T3.png\'">';
         html += '<div class="device-card-body">';
-        html += '<div class="device-card-title">' + (d.product_serial_number || '—') + '</div>';
-        html += '<div class="device-card-sub">' + (d.type || '—') + '</div>';
+        html += '<div class="device-card-title">' + escapeHtml(d.product_serial_number || '—') + '</div>';
+        html += '<div class="device-card-sub">' + escapeHtml(d.type || '—') + '</div>';
         html += '<div class="device-card-meta">';
         html += '<span class="badge ' + typeBadge + '">' + (d.device_type_code || '—') + '</span>';
         html += '<span class="badge ' + stageBadge(d.current_stage) + '">' + stageLabel(d.current_stage) + '</span>';
@@ -547,7 +574,7 @@ async function showDeviceDetails(id) {
         if (d.boards && d.boards.length) {
             for (var i = 0; i < d.boards.length; i++) {
                 var b = d.boards[i];
-                boardsHtml += '<div class="detail-row"><span class="detail-label">' + (b.board_type_name || '') + ' (' + b.serial_number + ')</span><span class="detail-value"><span class="badge ' + stageBadge(b.current_stage) + '">' + stageLabel(b.current_stage) + '</span></span></div>';
+                boardsHtml += '<div class="detail-row"><span class="detail-label">' + escapeHtml(b.board_type_name || '') + ' (' + escapeHtml(b.serial_number) + ')</span><span class="detail-value"><span class="badge ' + stageBadge(b.current_stage) + '">' + stageLabel(b.current_stage) + '</span></span></div>';
             }
         } else {
             boardsHtml = '<p style="color:var(--text-muted)">Нет привязанных плат</p>';
@@ -557,7 +584,7 @@ async function showDeviceDetails(id) {
         if (d.macs && d.macs.length) {
             for (var i = 0; i < d.macs.length; i++) {
                 var m = d.macs[i];
-                macHtml += '<div class="detail-row"><span class="detail-label">' + m.interface_name + '</span><span class="detail-value">' + m.mac_address + '</span></div>';
+                macHtml += '<div class="detail-row"><span class="detail-label">' + escapeHtml(m.interface_name) + '</span><span class="detail-value">' + escapeHtml(m.mac_address) + '</span></div>';
             }
         } else {
             macHtml = '<p style="color:var(--text-muted)">Нет</p>';
@@ -567,7 +594,7 @@ async function showDeviceDetails(id) {
         if (d.history && d.history.length) {
             for (var i = 0; i < d.history.length; i++) {
                 var h = d.history[i];
-                historyHtml += '<div class="recent-item"><div class="recent-item-icon"></div><div class="recent-item-info"><div class="recent-item-title">' + (h.message || '—') + '</div><div class="recent-item-sub">' + (h.date_time || '') + (h.emp_name ? ' — ' + h.emp_name : '') + '</div></div></div>';
+                historyHtml += '<div class="recent-item"><div class="recent-item-icon"></div><div class="recent-item-info"><div class="recent-item-title">' + escapeHtml(h.message || '—') + '</div><div class="recent-item-sub">' + (h.date_time || '') + (h.emp_name ? ' — ' + escapeHtml(h.emp_name) : '') + '</div></div></div>';
             }
         } else {
             historyHtml = '<p style="color:var(--text-muted)">Нет записей</p>';
@@ -575,17 +602,17 @@ async function showDeviceDetails(id) {
 
         var html = '';
         html += '<div style="text-align:center;margin-bottom:20px">';
-        html += '<img src="' + img + '" alt="' + (d.type || '') + '" style="max-height:200px;object-fit:contain;border-radius:var(--radius-md)" onerror="this.src=\'/images/ISN41508T3.png\'">';
+        html += '<img src="' + img + '" alt="' + escapeHtml(d.type || '') + '" style="max-height:200px;object-fit:contain;border-radius:var(--radius-md)" onerror="this.src=\'/images/ISN41508T3.png\'">';
         html += '</div>';
         html += renderPipeline(d.current_stage, false);
 
         html += '<div class="detail-grid">';
         html += '<div class="detail-group"><div class="detail-group-title">Основная информация</div>';
-        html += '<div class="detail-row"><span class="detail-label">Серийный номер</span><span class="detail-value">' + (d.product_serial_number || '—') + '</span></div>';
-        html += '<div class="detail-row"><span class="detail-label">Тип</span><span class="detail-value">' + (d.device_type_name || '—') + '</span></div>';
-        html += '<div class="detail-row"><span class="detail-label">Модификация</span><span class="detail-value">' + (d.type || '—') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Серийный номер</span><span class="detail-value">' + escapeHtml(d.product_serial_number || '—') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Тип</span><span class="detail-value">' + escapeHtml(d.device_type_name || '—') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Модификация</span><span class="detail-value">' + escapeHtml(d.type || '—') + '</span></div>';
         html += '<div class="detail-row"><span class="detail-label">Дата</span><span class="detail-value">' + (d.manufactures_date || '—') + '</span></div>';
-        html += '<div class="detail-row"><span class="detail-label">ОС</span><span class="detail-value">' + (d.version_os || '—') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">ОС</span><span class="detail-value">' + escapeHtml(d.version_os || '—') + '</span></div>';
         html += '<div class="detail-row"><span class="detail-label">Стадия</span><span class="detail-value"><span class="badge ' + stageBadge(d.current_stage) + '">' + stageLabel(d.current_stage) + '</span></span></div>';
         html += '</div>';
 
@@ -625,7 +652,7 @@ function makeSelectOptions(arr, codeField, labelField, selectedId) {
         var item = arr[i];
         var sel = item.id == selectedId ? ' selected' : '';
         var extra = item[codeField] ? ' (' + item[codeField] + ')' : '';
-        html += '<option value="' + item.id + '"' + sel + '>' + item[labelField] + extra + '</option>';
+        html += '<option value="' + item.id + '"' + sel + '>' + escapeHtml(item[labelField]) + extra + '</option>';
     }
     return html;
 }
@@ -638,27 +665,29 @@ async function showAddDevice(data) {
     var html = '<form onsubmit="saveDevice(event,' + (d.id || 'null') + ')">';
     html += '<div class="form-grid">';
     html += '<div class="form-group"><label class="form-label">Тип *</label><select class="form-select" name="device_type_id" required><option value="">Выберите</option>' + makeSelectOptions(S.deviceTypes, 'code', 'name', d.device_type_id) + '</select></div>';
-    html += '<div class="form-group"><label class="form-label">Серийный номер *</label><input class="form-input" name="product_serial_number" value="' + (d.product_serial_number || '') + '" required></div>';
-    html += '<div class="form-group"><label class="form-label">Модификация</label><input class="form-input" name="type" value="' + (d.type || '') + '"></div>';
+    html += '<div class="form-group"><label class="form-label">Серийный номер *</label><input class="form-input" name="product_serial_number" value="' + escapeHtml(d.product_serial_number || '') + '" required></div>';
+    html += '<div class="form-group"><label class="form-label">Модификация</label><input class="form-input" name="type" value="' + escapeHtml(d.type || '') + '"></div>';
     html += '<div class="form-group"><label class="form-label">Дата производства</label><input class="form-input" type="date" name="manufactures_date" value="' + (d.manufactures_date || '') + '"></div>';
     html += '<div class="form-group"><label class="form-label">Место</label><select class="form-select" name="place_of_production_id"><option value="">—</option>' + makeSelectOptions(S.productionPlaces, 'code', 'name', d.place_of_production_id) + '</select></div>';
     html += '<div class="form-group"><label class="form-label">Расположениые</label><select class="form-select" name="actual_location_id"><option value="">—</option>' + makeSelectOptions(S.locations, '', 'name', d.actual_location_id) + '</select></div>';
-    html += '<div class="form-group"><label class="form-label">Версия ОС</label><input class="form-input" name="version_os" value="' + (d.version_os || '') + '"></div>';
+    html += '<div class="form-group"><label class="form-label">Версия ОС</label><input class="form-input" name="version_os" value="' + escapeHtml(d.version_os || '') + '"></div>';
     html += ' <div class="form-group"> <label class="form-label">Изображение</label> <input type="file" id="deviceImageInput" class="form-input" accept="image/*" onchange="previewDeviceImage()"> </div>';
     html += ' <div id="imagePreview" style="margin-top:10px;text-align:center"> </div>';
-    html += ' <input type="hidden" id="uploadedImagePath" name="image_path" value="' + (d.image_path || '') + '">';
+    html += ' <input type="hidden" id="uploadedImagePath" name="image_path" value="' + escapeHtml(d.image_path || '') + '">';
     html += '<div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button><button type="submit" class="btn btn-primary">' + (d.id ? 'Сохранить' : 'Создать') + '</button></div>';
     html += '</form>';
 
     openModal(title, html);
     if (d.image_path) {
-    setTimeout(function() {
-        document.getElementById('uploadedImagePath').value = d.image_path;
-        document.getElementById('imagePreview').innerHTML = 
-            '<img src="' + d.image_path + '" style="max-width:200px;max-height:200px;border-radius:8px;margin-top:8px;">' +
-            '<p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Текущее изображение</p>';
-    }, 100);
-}
+        setTimeout(function() {
+            const uploadedPath = document.getElementById('uploadedImagePath');
+            const imagePreview = document.getElementById('imagePreview');
+            if (uploadedPath) uploadedPath.value = d.image_path;
+            if (imagePreview) {
+                imagePreview.innerHTML = '<img src="' + d.image_path + '" style="max-width:200px;max-height:200px;border-radius:8px;margin-top:8px;"><p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Текущее изображение</p>';
+            }
+        }, 100);
+    }
 }
 
 async function saveDevice(event, deviceId) {
@@ -669,7 +698,6 @@ async function saveDevice(event, deviceId) {
         if (value) data[key] = value; 
     });
     
-    // Добавляем путь к загруженному изображению
     const uploadedPath = document.getElementById('uploadedImagePath')?.value;
     if (uploadedPath) {
         data.image_path = uploadedPath;
@@ -718,6 +746,7 @@ async function deleteDevice(id) {
 // ============ BOARDS ============
 async function loadBoards() {
     var content = document.getElementById('contentArea');
+    if (!content) return;
     content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка...</p></div>';
 
     try {
@@ -760,16 +789,16 @@ async function loadBoards() {
         for (var i = 0; i < S.boards.length; i++) {
             var b = S.boards[i];
             html += '<tr>';
-            html += '<td><strong style="color:var(--primary);cursor:pointer" onclick="showBoardDetails(' + b.id + ')">' + b.serial_number + '</strong></td>';
-            html += '<td><span class="badge badge-neutral">' + (b.board_type_name || '—') + '</span></td>';
+            html += '<td><strong style="color:var(--primary);cursor:pointer" onclick="showBoardDetails(' + b.id + ')">' + escapeHtml(b.serial_number) + '</strong></td>';
+            html += '<td><span class="badge badge-neutral">' + escapeHtml(b.board_type_name || '—') + '</span></td>';
             html += '<td><span class="badge ' + stageBadge(b.current_stage) + '">' + stageLabel(b.current_stage) + '</span></td>';
-            html += '<td>' + (b.device_serial || '—') + '</td>';
+            html += '<td>' + escapeHtml(b.device_serial || '—') + '</td>';
             html += '<td>' + (b.visual_inspection_passed ? '<span class="badge badge-success">Пройден</span>' : '<span class="badge badge-neutral">—</span>') + '</td>';
             html += '<td>' + (b.diagnostics_passed ? '<span class="badge badge-success">Пройдена</span>' : '<span class="badge badge-neutral">—</span>') + '</td>';
             html += '</tr>';
         }
 
-        html += ' </tbody > </div > </div >';
+        html += '</tbody></div></div>';
         content.innerHTML = html;
     } catch (e) {
         content.innerHTML = '<div class="empty-state"><p>Ошибка: ' + e.message + '</p></div>';
@@ -788,7 +817,7 @@ function showAddBoard() {
     var typeOpts = '';
     for (var i = 0; i < S.boardTypes.length; i++) {
         var t = S.boardTypes[i];
-        typeOpts += '<option value="' + t.id + '">' + t.name + ' (' + t.code + ')</option>';
+        typeOpts += '<option value="' + t.id + '">' + escapeHtml(t.name) + ' (' + t.code + ')</option>';
     }
 
     openModal('Новая плата',
@@ -827,7 +856,7 @@ async function showBoardDetails(id) {
         if (b.vi_records && b.vi_records.length) {
             for (var i = 0; i < b.vi_records.length; i++) {
                 var r = b.vi_records[i];
-                viHtml += '<div class="detail-row"><span class="detail-label">' + (r.inspection_date || '') + '</span><span class="detail-value">' + (r.result ? 'Пройден' : 'Не пройден') + ' ' + (r.comment || '') + '</span></div>';
+                viHtml += '<div class="detail-row"><span class="detail-label">' + (r.inspection_date || '') + '</span><span class="detail-value">' + (r.result ? 'Пройден' : 'Не пройден') + ' ' + escapeHtml(r.comment || '') + '</span></div>';
             }
         } else {
             viHtml = '<p style="color:var(--text-muted)">Нет</p>';
@@ -846,10 +875,10 @@ async function showBoardDetails(id) {
         var html = renderPipeline(b.current_stage, true);
         html += '<div class="detail-grid">';
         html += '<div class="detail-group"><div class="detail-group-title">Информация</div>';
-        html += '<div class="detail-row"><span class="detail-label">Серийный номер</span><span class="detail-value">' + b.serial_number + '</span></div>';
-        html += '<div class="detail-row"><span class="detail-label">Тип</span><span class="detail-value">' + (b.board_type_name || '') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Серийный номер</span><span class="detail-value">' + escapeHtml(b.serial_number) + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Тип</span><span class="detail-value">' + escapeHtml(b.board_type_name || '') + '</span></div>';
         html += '<div class="detail-row"><span class="detail-label">Стадия</span><span class="detail-value"><span class="badge ' + stageBadge(b.current_stage) + '">' + stageLabel(b.current_stage) + '</span></span></div>';
-        html += '<div class="detail-row"><span class="detail-label">Устройство</span><span class="detail-value">' + (b.device_serial || 'Не привязана') + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Устройство</span><span class="detail-value">' + escapeHtml(b.device_serial || 'Не привязана') + '</span></div>';
         html += '</div>';
         html += '<div class="detail-group"><div class="detail-group-title">Визуальный осмотр</div>' + viHtml + '</div>';
         html += '<div class="detail-group"><div class="detail-group-title">Диагностика</div>' + diagHtml + '</div>';
@@ -922,7 +951,10 @@ function renderStandVisual() {
     loadAvailableBoardsForVisual().then(function(boards) {
         createDatalist('visual-boards-list', boards, 'serial_number', 'serial_number');
         
-        document.getElementById('contentArea').innerHTML = `
+        const contentArea = document.getElementById('contentArea');
+        if (!contentArea) return;
+        
+        contentArea.innerHTML = `
             <div class="stand-form"><div class="section-card">
                 <h3>Стенд визуального осмотра</h3>
                 <p style="color:var(--text-secondary);margin-bottom:20px">Выберите или отсканируйте плату. Только новые платы.</p>
@@ -957,7 +989,8 @@ async function submitVisualInspection(event) {
                 comment: fd.get('comment')
             })
         });
-        document.getElementById('standResult').innerHTML = '<div class="stand-result success"><h4>' + r.message + '</h4></div>';
+        const standResult = document.getElementById('standResult');
+        if (standResult) standResult.innerHTML = '<div class="stand-result success"><h4>' + r.message + '</h4></div>';
         event.target.reset();
         toast(r.message, 'success');
         if (!isOk) {
@@ -967,7 +1000,8 @@ async function submitVisualInspection(event) {
         loadAvailableBoardsForVisual();
         renderStandVisual();
     } catch (e) {
-        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>' + e.message + '</h4></div>';
+        const standResult = document.getElementById('standResult');
+        if (standResult) standResult.innerHTML = '<div class="stand-result error"><h4>' + e.message + '</h4></div>';
     }
 }
 
@@ -976,7 +1010,10 @@ function renderStandDiag() {
     loadAvailableBoardsForDiag().then(function(boards) {
         createDatalist('diag-boards-list', boards, 'serial_number', 'serial_number');
         
-        document.getElementById('contentArea').innerHTML = `
+        const contentArea = document.getElementById('contentArea');
+        if (!contentArea) return;
+        
+        contentArea.innerHTML = `
             <div class="stand-form"><div class="section-card">
                 <h3>Стенд диагностики</h3>
                 <p style="color:var(--text-secondary);margin-bottom:20px">Плата должна пройти визуальный осмотр.</p>
@@ -1027,7 +1064,8 @@ async function submitDiagnostics(event) {
                 memory_ok: fd.has('memory_ok')
             })
         });
-        document.getElementById('standResult').innerHTML = '<div class="stand-result success"><h4>' + r.message + '</h4></div>';
+        const standResult = document.getElementById('standResult');
+        if (standResult) standResult.innerHTML = '<div class="stand-result success"><h4>' + r.message + '</h4></div>';
         event.target.reset();
         toast(r.message, 'success');
         if (!isOk) {
@@ -1037,13 +1075,17 @@ async function submitDiagnostics(event) {
         loadAvailableBoardsForDiag();
         renderStandDiag();
     } catch (e) {
-        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>' + e.message + '</h4></div>';
+        const standResult = document.getElementById('standResult');
+        if (standResult) standResult.innerHTML = '<div class="stand-result error"><h4>' + e.message + '</h4></div>';
     }
 }
 
 // ============ СТЕНД СБОРКИ ============
 function renderStandAssembly() {
-    document.getElementById('contentArea').innerHTML = `
+    const contentArea = document.getElementById('contentArea');
+    if (!contentArea) return;
+    
+    contentArea.innerHTML = `
         <div class="stand-form"><div class="section-card">
             <h3>Стенд сборки</h3>
             <p style="color:var(--text-secondary);margin-bottom:20px">Все платы должны пройти диагностику.</p>
@@ -1083,11 +1125,13 @@ async function submitAssembly(event) {
                 device_type_id: fd.get('device_type_id')
             })
         });
-        document.getElementById('standResult').innerHTML = '<div class="stand-result success"><h4>' + r.message + '</h4><p>ID: ' + r.device_id + '</p></div>';
+        const standResult = document.getElementById('standResult');
+        if (standResult) standResult.innerHTML = '<div class="stand-result success"><h4>' + r.message + '</h4><p>ID: ' + r.device_id + '</p></div>';
         event.target.reset();
         toast(r.message, 'success');
     } catch (e) {
-        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>' + e.message + '</h4></div>';
+        const standResult = document.getElementById('standResult');
+        if (standResult) standResult.innerHTML = '<div class="stand-result error"><h4>' + e.message + '</h4></div>';
     }
 }
 
@@ -1096,7 +1140,10 @@ function renderStandPSI() {
     loadAvailableDevicesForPSI().then(function(devices) {
         createDatalist('psi-devices-list', devices, 'product_serial_number', 'product_serial_number');
         
-        document.getElementById('contentArea').innerHTML = `
+        const contentArea = document.getElementById('contentArea');
+        if (!contentArea) return;
+        
+        contentArea.innerHTML = `
             <div class="stand-form"><div class="section-card">
                 <h3>Стенд ПСИ</h3>
                 <p style="color:var(--text-secondary);margin-bottom:20px">Устройство должно пройти сборку.</p>
@@ -1147,7 +1194,8 @@ async function submitPSI(event) {
                 memory_ok: fd.has('memory_ok')
             })
         });
-        document.getElementById('standResult').innerHTML = '<div class="stand-result success"><h4>' + r.message + '</h4></div>';
+        const standResult = document.getElementById('standResult');
+        if (standResult) standResult.innerHTML = '<div class="stand-result success"><h4>' + r.message + '</h4></div>';
         event.target.reset();
         toast(r.message, 'success');
         if (!isOk) {
@@ -1157,13 +1205,17 @@ async function submitPSI(event) {
         loadAvailableDevicesForPSI();
         renderStandPSI();
     } catch (e) {
-        document.getElementById('standResult').innerHTML = '<div class="stand-result error"><h4>' + e.message + '</h4></div>';
+        const standResult = document.getElementById('standResult');
+        if (standResult) standResult.innerHTML = '<div class="stand-result error"><h4>' + e.message + '</h4></div>';
     }
 }
 
 // ============ СТЕНД УПАКОВКИ ============
 function renderStandPackaging() {
-    document.getElementById('contentArea').innerHTML = `
+    const contentArea = document.getElementById('contentArea');
+    if (!contentArea) return;
+    
+    contentArea.innerHTML = `
         <div class="stand-form">
             <div class="section-card">
                 <h3>Стенд упаковки</h3>
@@ -1195,7 +1247,6 @@ function renderStandPackaging() {
     `;
 }
 
-// ============ ФУНКЦИЯ УПАКОВКИ С АВТОМАТИЧЕСКИМ СКАЧИВАНИЕМ НАКЛЕЙКИ ============
 async function submitPackaging(event) {
     event.preventDefault();
     var fd = new FormData(event.target);
@@ -1220,7 +1271,7 @@ async function submitPackaging(event) {
         var resultHtml = `
             <div class="stand-result success">
                 <h4>${r.message}</h4>
-                <p style="margin-top:12px">Серийный номер: <strong>${deviceSn}</strong></p>
+                <p style="margin-top:12px">Серийный номер: <strong>${escapeHtml(deviceSn)}</strong></p>
                 <p>Дата упаковки: ${dateStr}</p>
         `;
         
@@ -1252,7 +1303,8 @@ async function submitPackaging(event) {
         
         resultHtml += `</div>`;
         
-        document.getElementById('standResult').innerHTML = resultHtml;
+        const standResult = document.getElementById('standResult');
+        if (standResult) standResult.innerHTML = resultHtml;
         event.target.reset();
         toast(r.message, 'success');
         
@@ -1261,12 +1313,15 @@ async function submitPackaging(event) {
         }
         
     } catch (e) {
-        document.getElementById('standResult').innerHTML = `
-            <div class="stand-result error">
-                <h4>Ошибка упаковки</h4>
-                <p>${e.message}</p>
-            </div>
-        `;
+        const standResult = document.getElementById('standResult');
+        if (standResult) {
+            standResult.innerHTML = `
+                <div class="stand-result error">
+                    <h4>Ошибка упаковки</h4>
+                    <p>${e.message}</p>
+                </div>
+            `;
+        }
         toast(e.message, 'error');
     } finally {
         submitBtn.textContent = originalText;
@@ -1277,6 +1332,7 @@ async function submitPackaging(event) {
 // ============ REPAIR ============
 async function loadRepairItems() {
     var content = document.getElementById('contentArea');
+    if (!content) return;
     content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка...</p></div>';
 
     try {
@@ -1306,10 +1362,10 @@ async function loadRepairItems() {
                 var b = S.repairBoards[i];
                 html += '<div class="repair-item" data-board-id="' + b.id + '">';
                 html += '<div class="repair-header">';
-                html += '<span class="repair-sn">' + (b.serial_number || '—') + '</span>';
+                html += '<span class="repair-sn">' + escapeHtml(b.serial_number || '—') + '</span>';
                 html += '<span class="repair-stage failed">' + stageLabel(b.current_stage) + '</span>';
                 html += '</div>';
-                html += '<div class="repair-details">Тип платы: ' + (b.board_type_name || '—') + '</div>';
+                html += '<div class="repair-details">Тип платы: ' + escapeHtml(b.board_type_name || '—') + '</div>';
                 var reason = '';
                 if (b.current_stage === 'visual_fail') reason = 'Не пройден визуальный осмотр';
                 else if (b.current_stage === 'diagnostics_fail') reason = 'Не пройдена диагностика';
@@ -1329,10 +1385,10 @@ async function loadRepairItems() {
                 var d = S.repairDevices[i];
                 html += '<div class="repair-item" data-device-id="' + d.id + '">';
                 html += '<div class="repair-header">';
-                html += '<span class="repair-sn">' + (d.product_serial_number || '—') + '</span>';
+                html += '<span class="repair-sn">' + escapeHtml(d.product_serial_number || '—') + '</span>';
                 html += '<span class="repair-stage failed">' + stageLabel(d.current_stage) + '</span>';
                 html += '</div>';
-                html += '<div class="repair-details">Тип: ' + (d.device_type_name || '—') + '</div>';
+                html += '<div class="repair-details">Тип: ' + escapeHtml(d.device_type_name || '—') + '</div>';
                 var reason = '';
                 if (d.current_stage === 'psi_fail') reason = 'Не пройден ПСИ';
                 html += '<div class="repair-error">Причина: ' + reason + '</div>';
@@ -1423,69 +1479,68 @@ async function deleteRepairDevice(id) {
     }
 }
 
-// ============ REFERENCES ============
+// ============ TYPES ============
 async function loadDeviceTypes() {
-  const content = document.getElementById('contentArea');
-  content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка типов...</p></div>';
+    const content = document.getElementById('contentArea');
+    if (!content) return;
+    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка типов...</p></div>';
 
-  try {
-    const types = await api('/api/device-types');
-    S.deviceTypes = types || [];
-    const isAdmin = S.user && S.user.role === 'admin';
+    try {
+        const types = await api('/api/device-types');
+        S.deviceTypes = types || [];
+        const isAdmin = S.user && S.user.role === 'admin';
 
-    // Формируем HTML с карточками
-    let html = `
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-info"><span class="stat-value">${types.length}</span><span class="stat-label">Типов изделий</span></div>
-        </div>
-      </div>
+        let html = `
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-info"><span class="stat-value">${types.length}</span><span class="stat-label">Типов изделий</span></div>
+                </div>
+            </div>
 
-      <div class="action-panel">
-        <div class="search-input-wrap" style="flex:1;max-width:400px;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" class="search-input" placeholder="Поиск по коду или названию..." oninput="filterTypes(this.value)" id="typeSearch">
-        </div>
-        ${isAdmin ? '<button class="btn btn-primary" onclick="showAddType()">+ Добавить тип</button>' : ''}
-      </div>
+            <div class="action-panel">
+                <div class="search-input-wrap" style="flex:1;max-width:400px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" class="search-input" placeholder="Поиск по коду или названию..." oninput="filterTypes(this.value)" id="typeSearch">
+                </div>
+                ${isAdmin ? '<button class="btn btn-primary" onclick="showAddType()">+ Добавить тип</button>' : ''}
+            </div>
 
-      <div class="types-grid" id="typesGrid">
-        ${types.map(t => `
-          <div class="type-card" data-code="${t.code}" data-name="${t.name}">
-            <div class="type-code-display"><h3>${t.code}</h3></div>
-            <div class="type-info"><p>${t.name}</p></div>
-            ${isAdmin ? `<div class="type-actions"><button class="btn-icon danger" onclick="deleteType(${t.id})" title="Удалить">✕</button></div>` : ''}
-          </div>
-        `).join('')}
-      </div>
-    `;
+            <div class="types-grid" id="typesGrid">
+                ${types.map(t => `
+                    <div class="type-card" data-code="${escapeHtml(t.code)}" data-name="${escapeHtml(t.name)}">
+                        <div class="type-code-display"><h3>${escapeHtml(t.code)}</h3></div>
+                        <div class="type-info"><p>${escapeHtml(t.name)}</p></div>
+                        ${isAdmin ? `<div class="type-actions"><button class="btn-icon danger" onclick="deleteType(${t.id})" title="Удалить">✕</button></div>` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        `;
 
-    if (!types.length) {
-      html = `
-        <div class="places-empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-          <h3>Типы изделий не найдены</h3>
-          <p>Добавьте первый тип устройства, чтобы начать работу</p>
-          ${isAdmin ? '<button class="btn btn-primary" onclick="showAddType()">+ Создать тип</button>' : ''}
-        </div>
-      `;
+        if (!types.length) {
+            html = `
+                <div class="places-empty">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                    <h3>Типы изделий не найдены</h3>
+                    <p>Добавьте первый тип устройства, чтобы начать работу</p>
+                    ${isAdmin ? '<button class="btn btn-primary" onclick="showAddType()">+ Создать тип</button>' : ''}
+                </div>
+            `;
+        }
+
+        content.innerHTML = html;
+    } catch (e) {
+        content.innerHTML = `<div class="empty-state"><p>Ошибка загрузки: ${e.message}</p><button class="btn btn-primary" onclick="loadDeviceTypes()">Повторить</button></div>`;
     }
-
-    content.innerHTML = html;
-  } catch (e) {
-    content.innerHTML = `<div class="empty-state"><p>Ошибка загрузки: ${e.message}</p><button class="btn btn-primary" onclick="loadDeviceTypes()">Повторить</button></div>`;
-  }
 }
 
-// Функция поиска (добавить после loadDeviceTypes)
 function filterTypes(val) {
-  const search = (val || '').toLowerCase();
-  document.querySelectorAll('.type-card').forEach(card => {
-    const code = card.getAttribute('data-code') || '';
-    const name = card.getAttribute('data-name') || '';
-    const match = code.toLowerCase().includes(search) || name.toLowerCase().includes(search);
-    card.style.display = match ? '' : 'none';
-  });
+    const search = (val || '').toLowerCase();
+    document.querySelectorAll('.type-card').forEach(card => {
+        const code = card.getAttribute('data-code') || '';
+        const name = card.getAttribute('data-name') || '';
+        const match = code.toLowerCase().includes(search) || name.toLowerCase().includes(search);
+        card.style.display = match ? '' : 'none';
+    });
 }
 
 function showAddType() {
@@ -1514,149 +1569,283 @@ async function deleteType(id) {
     catch (e) { showError(e.message); }
 }
 
-// ============ МЕСТА ПРОИЗВОДСТВА (СТАБИЛЬНАЯ ВЕРСИЯ) ============
+// ============ МЕСТА ПРОИЗВОДСТВА ============
 async function loadProductionPlaces() {
-  const content = document.getElementById('contentArea');
-  content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка мест...</p></div>';
+    const content = document.getElementById('contentArea');
+    if (!content) return;
+    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка мест...</p></div>';
 
-  try {
-    const places = await api('/api/production-places');
-    // Загружаем устройства отдельно, чтобы не ронять весь блок при ошибке
-    let devices = [];
-    try { devices = await api('/api/devices') || []; } catch(e) { console.warn('Не удалось загрузить устройства для статистики:', e); }
-    
-    S.productionPlaces = places || [];
-    const placeStats = {};
-    devices.forEach(d => {
-      if (d.place_of_production_id) placeStats[d.place_of_production_id] = (placeStats[d.place_of_production_id] || 0) + 1;
-    });
+    try {
+        const places = await api('/api/production-places');
+        let devices = [];
+        try { 
+            devices = await api('/api/devices') || []; 
+        } catch(e) { 
+            console.warn('Не удалось загрузить устройства для статистики:', e); 
+        }
+        
+        S.productionPlaces = places || [];
+        
+        const placeStats = {};
+        devices.forEach(d => {
+            if (d.place_of_production_id) {
+                placeStats[d.place_of_production_id] = (placeStats[d.place_of_production_id] || 0) + 1;
+            }
+        });
 
-    const isAdmin = S.user && S.user.role === 'admin';
-    let html = `
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-info"><span class="stat-value">${places.length}</span><span class="stat-label">Всего мест</span></div></div>
-        <div class="stat-card"><div class="stat-info"><span class="stat-value">${Object.keys(placeStats).length}</span><span class="stat-label">Активных</span></div></div>
-      </div>
-      <div class="action-panel">
-        <div class="search-input-wrap" style="flex:1;max-width:400px;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" class="search-input" placeholder="Поиск по названию или коду..." oninput="filterPlaces(this.value)" id="placeSearch">
-        </div>
-        ${isAdmin ? '<button class="btn btn-primary" onclick="showAddPlace()">+ Добавить место</button>' : ''}
-      </div>
-      <div class="places-grid" id="placesGrid">${renderPlaceCards(places, placeStats, isAdmin)}</div>
-    `;
+        const isAdmin = S.user && S.user.role === 'admin';
+        
+        let html = `
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <span class="stat-value">${places.length}</span>
+                        <span class="stat-label">Всего мест</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <span class="stat-value">${Object.keys(placeStats).length}</span>
+                        <span class="stat-label">Активных</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <span class="stat-value">${devices.length}</span>
+                        <span class="stat-label">Всего устройств</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="action-panel">
+                <div class="search-input-wrap" style="flex:1;max-width:400px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" class="search-input" placeholder="Поиск по названию или коду..." 
+                           oninput="filterPlaces(this.value)" id="placeSearch" autocomplete="off">
+                </div>
+                ${isAdmin ? '<button class="btn btn-primary" onclick="showAddPlace()">+ Добавить место</button>' : ''}
+            </div>
+            
+            <div class="places-grid" id="placesGrid">
+                ${renderPlaceCards(places, placeStats, isAdmin)}
+            </div>
+        `;
 
-    if (!places.length) {
-      html = `<div class="places-empty">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-        <h3>Места производства не найдены</h3>
-        <p>Добавьте первое производственное место, чтобы начать работу</p>
-        ${isAdmin ? '<button class="btn btn-primary" onclick="showAddPlace()">+ Создать место</button>' : ''}
-      </div>`;
+        if (!places.length) {
+            html = `
+                <div class="places-empty">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                        <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <h3>Места производства не найдены</h3>
+                    <p>Добавьте первое производственное место, чтобы начать работу</p>
+                    ${isAdmin ? '<button class="btn btn-primary" onclick="showAddPlace()">+ Создать место</button>' : ''}
+                </div>
+            `;
+        }
+        content.innerHTML = html;
+    } catch (e) {
+        content.innerHTML = `
+            <div class="empty-state">
+                <p>Ошибка загрузки: ${e.message}</p>
+                <button class="btn btn-primary" onclick="loadProductionPlaces()">Повторить</button>
+            </div>
+        `;
     }
-    content.innerHTML = html;
-  } catch (e) {
-    content.innerHTML = `<div class="empty-state"><p>Ошибка загрузки: ${e.message}</p><button class="btn btn-primary" onclick="loadProductionPlaces()">Повторить</button></div>`;
-  }
 }
 
 function renderPlaceCards(places, stats, isAdmin) {
-  if (!places.length) return '';
-  return places.map(p => {
-    const count = stats[p.id] || 0;
-    const isActive = count > 0;
-    return `
-      <div class="place-card" data-id="${p.id}" data-name="${p.name}" data-code="${p.code}">
-        <div class="place-header">
-          <div class="place-icon">${getPlaceIcon(p.name)}</div>
-          <div class="place-title">
-            <span class="place-code">${p.code || '—'}</span>
-            <h4>${p.name || 'Без названия'}</h4>
-          </div>
-          <div class="place-status ${isActive ? 'active' : 'inactive'}" title="${isActive ? 'Используется' : 'Не активно'}"></div>
-        </div>
-        <div class="place-stats">
-          <div class="stat-item"><span class="stat-value">${count}</span><span class="stat-label">Устройств</span></div>
-          <div class="stat-item"><span class="stat-value">${isActive ? '100%' : '0%'}</span><span class="stat-label">Загрузка</span></div>
-        </div>
-        ${isAdmin ? `
-          <div class="place-actions">
-            <button class="btn-icon" onclick="showEditPlace(${p.id})" title="Редактировать">✎</button>
-            <button class="btn-icon danger" onclick="deletePlace(${p.id})" title="Удалить">✕</button>
-          </div>
-        ` : ''}
-      </div>`;
-  }).join('');
+    if (!places.length) return '';
+    
+    return places.map(p => {
+        const count = stats[p.id] || 0;
+        const isActive = count > 0;
+        
+        return `
+            <div class="place-card" data-id="${p.id}" data-name="${escapeHtml(p.name)}" data-code="${escapeHtml(p.code || '')}">
+                <div class="place-header">
+                    <div class="place-icon-wrap">
+                        ${getPlaceIcon(p.name)}
+                    </div>
+                    <div class="place-info">
+                        <span class="place-code">${escapeHtml(p.code || '—')}</span>
+                        <span class="place-name">${escapeHtml(p.name || 'Без названия')}</span>
+                    </div>
+                    <div class="place-status-dot ${isActive ? 'active' : ''}" 
+                         title="${isActive ? 'Активно' : 'Не активно'}">
+                    </div>
+                </div>
+                
+                <div class="place-body">
+                    <div class="stat-box">
+                        <span class="stat-value">${count}</span>
+                        <span class="stat-label">Устройств</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-value">${isActive ? '100%' : '0%'}</span>
+                        <span class="stat-label">Загрузка</span>
+                    </div>
+                </div>
+                
+                ${isAdmin ? `
+                <div class="place-footer">
+                    <button class="btn-icon" onclick="showEditPlace(${p.id})" title="Редактировать">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                    </button>
+                    <button class="btn-icon danger" onclick="deletePlace(${p.id})" title="Удалить">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                    </button>
+                </div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
 }
 
 function filterPlaces(val) {
-  const search = (val || '').toLowerCase();
-  document.querySelectorAll('.place-card').forEach(card => {
-    const name = card.getAttribute('data-name') || '';
-    const code = card.getAttribute('data-code') || '';
-    card.style.display = (name.toLowerCase().includes(search) || code.toLowerCase().includes(search)) ? '' : 'none';
-  });
+    const search = (val || '').toLowerCase().trim();
+    const cards = document.querySelectorAll('.place-card');
+    let visibleCount = 0;
+    
+    cards.forEach(card => {
+        const name = (card.getAttribute('data-name') || '').toLowerCase();
+        const code = (card.getAttribute('data-code') || '').toLowerCase();
+        const match = name.includes(search) || code.includes(search);
+        card.style.display = match ? '' : 'none';
+        if (match) visibleCount++;
+    });
+    
+    const grid = document.getElementById('placesGrid');
+    const existingMsg = document.getElementById('noSearchResults');
+    
+    if (visibleCount === 0 && cards.length > 0) {
+        if (!existingMsg) {
+            const msg = document.createElement('div');
+            msg.id = 'noSearchResults';
+            msg.className = 'empty-state';
+            msg.style.gridColumn = '1/-1';
+            msg.style.padding = '40px';
+            msg.innerHTML = `
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <p style="margin-top:12px">Ничего не найдено для "${escapeHtml(search)}"</p>
+            `;
+            if (grid) grid.appendChild(msg);
+        }
+    } else if (existingMsg) {
+        existingMsg.remove();
+    }
 }
 
 function showAddPlace() {
-  openModal('Новое место производства', `
-    <form onsubmit="savePlace(event)" style="padding:20px;">
-      <div class="form-group" style="margin-bottom:16px;">
-        <label class="form-label">Код *</label>
-        <input class="form-input" name="code" required placeholder="Например: 01" pattern="[0-9]{2}" maxlength="2" style="text-transform:uppercase">
-        <small style="color:var(--text-muted);margin-top:4px;display:block;">2 цифры</small>
-      </div>
-      <div class="form-group" style="margin-bottom:20px;">
-        <label class="form-label">Название *</label>
-        <input class="form-input" name="name" required placeholder="Полное наименование">
-      </div>
-      <div class="form-actions" style="margin-top:0;">
-        <button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-        <button type="submit" class="btn btn-primary">Создать</button>
-      </div>
-    </form>
-  `);
+    openModal('Новое место производства', `
+        <form onsubmit="savePlace(event)" style="padding:20px;">
+            <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Код *</label>
+                <input class="form-input" name="code" required placeholder="Например: 01" 
+                       pattern="[0-9]{2}" maxlength="2" style="text-transform:uppercase">
+                <small style="color:var(--text-muted);margin-top:4px;display:block;">2 цифры</small>
+            </div>
+            <div class="form-group" style="margin-bottom:20px;">
+                <label class="form-label">Название *</label>
+                <input class="form-input" name="name" required placeholder="Полное наименование">
+            </div>
+            <div class="form-actions" style="margin-top:0;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary">Создать</button>
+            </div>
+        </form>
+    `);
 }
 
 function showEditPlace(id) {
-  const place = S.productionPlaces.find(p => p.id === id);
-  if (!place) return;
-  openModal('Редактировать место', `
-    <form onsubmit="savePlace(event, ${id})" style="padding:20px;">
-      <div class="form-group" style="margin-bottom:16px;">
-        <label class="form-label">Код *</label>
-        <input class="form-input" name="code" required value="${place.code}" pattern="[0-9]{2}" maxlength="2" style="text-transform:uppercase">
-      </div>
-      <div class="form-group" style="margin-bottom:20px;">
-        <label class="form-label">Название *</label>
-        <input class="form-input" name="name" required value="${place.name}">
-      </div>
-      <div class="form-actions" style="margin-top:0;">
-        <button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-        <button type="submit" class="btn btn-primary">Сохранить</button>
-      </div>
-    </form>
-  `);
+    const place = S.productionPlaces.find(p => p.id === id);
+    if (!place) return;
+    
+    openModal('Редактировать место', `
+        <form onsubmit="savePlace(event, ${id})" style="padding:20px;">
+            <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Код *</label>
+                <input class="form-input" name="code" required value="${escapeHtml(place.code || '')}" 
+                       pattern="[0-9]{2}" maxlength="2" style="text-transform:uppercase">
+            </div>
+            <div class="form-group" style="margin-bottom:20px;">
+                <label class="form-label">Название *</label>
+                <input class="form-input" name="name" required value="${escapeHtml(place.name)}">
+            </div>
+            <div class="form-actions" style="margin-top:0;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+        </form>
+    `);
 }
 
 async function savePlace(e, id = null) {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const data = { name: fd.get('name'), code: fd.get('code') };
-  try {
-    if (id) await api('/api/production-places/' + id, { method: 'PUT', body: JSON.stringify(data) });
-    else await api('/api/production-places', { method: 'POST', body: JSON.stringify(data) });
-    toast(id ? 'Место обновлено' : 'Место добавлено', 'success');
-    closeModal();
-    loadProductionPlaces();
-  } catch (err) { showError(err.message); }
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const data = { 
+        name: fd.get('name').trim(), 
+        code: fd.get('code').trim().toUpperCase()
+    };
+    
+    if (!data.name || !data.code) {
+        showError('Заполните все поля');
+        return;
+    }
+    
+    if (!/^\d{2}$/.test(data.code)) {
+        showError('Код должен состоять из 2 цифр');
+        return;
+    }
+    
+    try {
+        if (id) {
+            await api('/api/production-places/' + id, { method: 'PUT', body: JSON.stringify(data) });
+            toast('Место обновлено', 'success');
+        } else {
+            await api('/api/production-places', { method: 'POST', body: JSON.stringify(data) });
+            toast('Место добавлено', 'success');
+        }
+        closeModal();
+        loadProductionPlaces();
+    } catch (err) { 
+        showError(err.message); 
+    }
 }
 
+async function deletePlace(id) {
+    const place = S.productionPlaces.find(p => p.id === id);
+    if (!place) return;
+    
+    if (!confirm(`Удалить место "${place.name}"?\nЭто действие нельзя отменить.`)) return;
+    
+    try { 
+        await api('/api/production-places/' + id, { method: 'DELETE' }); 
+        toast('Место удалено', 'success'); 
+        loadProductionPlaces(); 
+    } catch (e) { 
+        showError(e.message); 
+    }
+}
+
+// ============ SERIAL STRUCTURE ============
 function renderSerialStructure() {
     const content = document.getElementById('contentArea');
+    if (!content) return;
     
-    // SVG иконки для красоты
     const iconHash = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><line x1="10" y1="3" x2="8" y2="21"></line><line x1="16" y1="3" x2="14" y2="21"></line></svg>`;
     const iconCalendar = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`;
     const iconLayers = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>`;
@@ -1668,7 +1857,6 @@ function renderSerialStructure() {
             <div class="serial-example-badge">RS501175220001</div>
         </div>
 
-        <!-- Визуальные блоки -->
         <div class="serial-structure-visual">
             <div class="serial-segment">
                 <div class="serial-segment-box">RS</div>
@@ -1700,9 +1888,7 @@ function renderSerialStructure() {
             </div>
         </div>
 
-        <!-- Карточки с пояснениями -->
         <div class="serial-info-grid">
-            <!-- Карточка 1 -->
             <div class="serial-info-card">
                 <h4>${iconHash} Тип устройства</h4>
                 <div class="serial-info-row">
@@ -1715,7 +1901,6 @@ function renderSerialStructure() {
                 </div>
             </div>
 
-            <!-- Карточка 2 -->
             <div class="serial-info-card">
                 <h4>${iconLayers} Этап производства</h4>
                 <div class="serial-info-row">
@@ -1732,7 +1917,6 @@ function renderSerialStructure() {
                 </div>
             </div>
 
-            <!-- Карточка 3 -->
             <div class="serial-info-card">
                 <h4>${iconMap} Место производства</h4>
                 <div class="serial-info-row">
@@ -1745,7 +1929,6 @@ function renderSerialStructure() {
                 </div>
             </div>
 
-            <!-- Карточка 4 -->
             <div class="serial-info-card">
                 <h4>${iconCalendar} Дата выпуска</h4>
                 <div class="serial-info-row">
@@ -1761,82 +1944,218 @@ function renderSerialStructure() {
     `;
 }
 
-// ============ STATISTICS ============
+// ============ STATISTICS (УЛУЧШЕННАЯ) ============
 async function loadStatistics() {
-    var content = document.getElementById('contentArea');
-    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+    const content = document.getElementById('contentArea');
+    if (!content) return;
+    
+    content.innerHTML = `
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Загрузка статистики...</p>
+        </div>
+    `;
 
     try {
-        var s = await api('/api/statistics');
+        const s = await api('/api/statistics');
         if (!s) return;
 
-        var stageLabelsMap = { 'new': 'Новое', 'visual_ok': 'Осмотр', 'diagnostics_ok': 'Диагностика', 'assembled': 'Собрано', 'psi_ok': 'ПСИ', 'packaged': 'Упаковано' };
+        const stageLabelsMap = { 
+            new: 'Новое', 
+            visual_ok: 'Осмотр', 
+            diagnostics_ok: 'Диагностика', 
+            assembled: 'Собрано', 
+            psi_ok: 'ПСИ', 
+            packaged: 'Упаковано' 
+        };
 
-        var html = '<div class="stats-grid">';
-        html += '<div class="stat-card"><div class="stat-info"><span class="stat-value">' + s.totalDevices + '</span><span class="stat-label">Устройств</span></div></div>';
-        html += '<div class="stat-card"><div class="stat-info"><span class="stat-value">' + s.totalBoards + '</span><span class="stat-label">Плат</span></div></div>';
-        html += '<div class="stat-card"><div class="stat-info"><span class="stat-value">' + s.totalEmployees + '</span><span class="stat-label">Сотрудников</span></div></div>';
-        html += '</div>';
+        const maxByType = s.byType?.length ? Math.max(...s.byType.map(t => t.count)) : 1;
+        const maxByStage = s.byStage?.length ? Math.max(...s.byStage.map(s => s.count)) : 1;
+        const maxByPlace = s.byPlace?.length ? Math.max(...s.byPlace.map(p => p.count)) : 1;
 
-        html += '<div class="chart-grid">';
+        let html = `
+            <div class="stats-container">
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                            </svg>
+                        </div>
+                        <div class="metric-info">
+                            <span class="metric-value">${s.totalDevices || 0}</span>
+                            <span class="metric-label">Устройств</span>
+                        </div>
+                    </div>
 
-        if (s.byType && s.byType.length) {
-            var maxT = 1;
-            for (var i = 0; i < s.byType.length; i++) { if (s.byType[i].count > maxT) maxT = s.byType[i].count; }
-            html += '<div class="chart-card"><h4>По типу</h4><div class="bar-chart">';
-            for (var i = 0; i < s.byType.length; i++) {
-                var t = s.byType[i];
-                html += '<div class="bar-item"><span class="bar-label">' + t.name + '</span><div class="bar-track"><div class="bar-fill" style="width:' + (t.count / maxT * 100) + '%"></div></div><span class="bar-value">' + t.count + '</span></div>';
-            }
-            html += '</div></div>';
-        }
+                    <div class="metric-card">
+                        <div class="metric-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="4" y="4" width="16" height="16" rx="2"/>
+                                <path d="M9 9h6v6H9z"/>
+                            </svg>
+                        </div>
+                        <div class="metric-info">
+                            <span class="metric-value">${s.totalBoards || 0}</span>
+                            <span class="metric-label">Плат</span>
+                        </div>
+                    </div>
 
-        if (s.byStage && s.byStage.length) {
-            var maxDS = 1;
-            for (var i = 0; i < s.byStage.length; i++) { if (s.byStage[i].count > maxDS) maxDS = s.byStage[i].count; }
-            html += '<div class="chart-card"><h4>Устройства по стадии</h4><div class="bar-chart">';
-            for (var i = 0; i < s.byStage.length; i++) {
-                var x = s.byStage[i];
-                html += '<div class="bar-item"><span class="bar-label">' + (stageLabelsMap[x.current_stage] || x.current_stage) + '</span><div class="bar-track"><div class="bar-fill" style="width:' + (x.count / maxDS * 100) + '%"></div></div><span class="bar-value">' + x.count + '</span></div>';
-            }
-            html += '</div></div>';
-        }
+                    <div class="metric-card">
+                        <div class="metric-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                <circle cx="9" cy="7" r="4"/>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                            </svg>
+                        </div>
+                        <div class="metric-info">
+                            <span class="metric-value">${s.totalEmployees || 0}</span>
+                            <span class="metric-label">Сотрудников</span>
+                        </div>
+                    </div>
 
-        if (s.boardsByStage && s.boardsByStage.length) {
-            var maxBS = 1;
-            for (var i = 0; i < s.boardsByStage.length; i++) { if (s.boardsByStage[i].count > maxBS) maxBS = s.boardsByStage[i].count; }
-            html += '<div class="chart-card"><h4>Платы по стадии</h4><div class="bar-chart">';
-            for (var i = 0; i < s.boardsByStage.length; i++) {
-                var x = s.boardsByStage[i];
-                html += '<div class="bar-item"><span class="bar-label">' + (stageLabelsMap[x.current_stage] || x.current_stage) + '</span><div class="bar-track"><div class="bar-fill" style="width:' + (x.count / maxBS * 100) + '%"></div></div><span class="bar-value">' + x.count + '</span></div>';
-            }
-            html += '</div></div>';
-        }
+                    <div class="metric-card">
+                        <div class="metric-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                            </svg>
+                        </div>
+                        <div class="metric-info">
+                            <span class="metric-value">${s.recentDevices?.length || 0}</span>
+                            <span class="metric-label">Последние операции</span>
+                        </div>
+                    </div>
+                </div>
 
-        if (s.recentDevices && s.recentDevices.length) {
-            html += '<div class="chart-card"><h4>Последние устройства</h4><div class="recent-list">';
-            for (var i = 0; i < s.recentDevices.length; i++) {
-                var d = s.recentDevices[i];
-                html += '<div class="recent-item"><div class="recent-item-icon"></div><div class="recent-item-info"><div class="recent-item-title">' + (d.product_serial_number || '—') + '</div><div class="recent-item-sub">' + (d.dtn || '') + ' • ' + (stageLabelsMap[d.current_stage] || d.current_stage || '') + '</div></div></div>';
-            }
-            html += '</div></div>';
-        }
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                            </svg>
+                            По типам устройств
+                        </h3>
+                        <div class="bar-chart">
+                            ${s.byType?.map(t => `
+                                <div class="bar-item">
+                                    <span class="bar-label">${t.name || '—'}</span>
+                                    <div class="bar-track">
+                                        <div class="bar-fill" style="width: ${Math.round((t.count / maxByType) * 100)}%"></div>
+                                    </div>
+                                    <span class="bar-value">${t.count}</span>
+                                </div>
+                            `).join('') || '<p style="color:var(--text-muted);text-align:center;padding:20px;">Нет данных</p>'}
+                        </div>
+                    </div>
 
-        html += '</div>';
+                    <div class="chart-card">
+                        <h3>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                            </svg>
+                            По стадиям производства
+                        </h3>
+                        <div class="bar-chart">
+                            ${s.byStage?.map(st => `
+                                <div class="bar-item">
+                                    <span class="bar-label">${stageLabelsMap[st.current_stage] || st.current_stage || '—'}</span>
+                                    <div class="bar-track">
+                                        <div class="bar-fill" style="width: ${Math.round((st.count / maxByStage) * 100)}%"></div>
+                                    </div>
+                                    <span class="bar-value">${st.count}</span>
+                                </div>
+                            `).join('') || '<p style="color:var(--text-muted);text-align:center;padding:20px;">Нет данных</p>'}
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <h3>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                <circle cx="12" cy="10" r="3"/>
+                            </svg>
+                            По местам производства
+                        </h3>
+                        <div class="bar-chart">
+                            ${s.byPlace?.map(p => `
+                                <div class="bar-item">
+                                    <span class="bar-label">${p.name || '—'}</span>
+                                    <div class="bar-track">
+                                        <div class="bar-fill" style="width: ${Math.round((p.count / maxByPlace) * 100)}%"></div>
+                                    </div>
+                                    <span class="bar-value">${p.count}</span>
+                                </div>
+                            `).join('') || '<p style="color:var(--text-muted);text-align:center;padding:20px;">Нет данных</p>'}
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <h3>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            Последние операции
+                        </h3>
+                        ${s.recentDevices?.length ? `
+                            <table class="recent-table">
+                                <thead>
+                                    <tr>
+                                        <th>Серийный номер</th>
+                                        <th>Тип</th>
+                                        <th>Стадия</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${s.recentDevices.map(d => `
+                                        <tr>
+                                            <td>${escapeHtml(d.product_serial_number) || '—'}</td>
+                                            <td>${escapeHtml(d.dtn) || '—'}</td>
+                                            <td>${stageLabelsMap[d.current_stage] || d.current_stage || '—'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        ` : '<p style="color:var(--text-muted);text-align:center;padding:20px;">Нет данных</p>'}
+                    </div>
+                </div>
+            </div>
+        `;
+
         content.innerHTML = html;
+
+        setTimeout(() => {
+            document.querySelectorAll('.bar-fill').forEach(bar => {
+                const width = bar.style.width;
+                bar.style.width = '0%';
+                setTimeout(() => {
+                    bar.style.width = width;
+                }, 100);
+            });
+        }, 100);
+
     } catch (e) {
-        content.innerHTML = '<div class="empty-state"><p>Ошибка</p></div>';
+        content.innerHTML = `
+            <div class="empty-state">
+                <p>Ошибка загрузки статистики: ${e.message}</p>
+                <button class="btn btn-primary" onclick="loadStatistics()">Повторить</button>
+            </div>
+        `;
     }
 }
 
 // ============ EMPLOYEES ============
 async function loadEmployees() {
     if (!S.user || S.user.role !== 'admin') {
-        document.getElementById('contentArea').innerHTML = '<div class="empty-state"><p>Недостаточно прав</p></div>';
+        const contentArea = document.getElementById('contentArea');
+        if (contentArea) contentArea.innerHTML = '<div class="empty-state"><p>Недостаточно прав</p></div>';
         return;
     }
 
     var content = document.getElementById('contentArea');
+    if (!content) return;
     content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
 
     try {
@@ -1852,9 +2171,9 @@ async function loadEmployees() {
         for (var i = 0; i < S.employees.length; i++) {
             var e = S.employees[i];
             html += '<tr>';
-            html += '<td><strong>' + e.last_name + ' ' + e.first_name + ' ' + (e.middle_name || '') + '</strong></td>';
-            html += '<td>' + e.position + '</td>';
-            html += '<td><code style="background:var(--bg-input);padding:2px 8px;border-radius:4px">' + e.username + '</code></td>';
+            html += '<td><strong>' + escapeHtml(e.last_name + ' ' + e.first_name + ' ' + (e.middle_name || '')) + '</strong></td>';
+            html += '<td>' + escapeHtml(e.position) + '</td>';
+            html += '<td><code style="background:var(--bg-input);padding:2px 8px;border-radius:4px">' + escapeHtml(e.username) + '</code></td>';
             html += '<td><span class="badge ' + (roleBadges[e.role] || 'badge-neutral') + '">' + (roleLabels[e.role] || e.role) + '</span></td>';
             html += '<td><div class="cell-actions">';
             html += '<button class="btn-icon" onclick="showEditEmp(' + e.id + ')">✎</button>';
@@ -1874,11 +2193,11 @@ function showAddEmp(data) {
     var title = e.id ? 'Редактировать' : 'Новый сотрудник';
 
     var html = '<form onsubmit="saveEmp(event,' + (e.id || 'null') + ')"><div class="form-grid">';
-    html += '<div class="form-group"><label class="form-label">Фамилия *</label><input class="form-input" name="last_name" value="' + (e.last_name || '') + '" required></div>';
-    html += '<div class="form-group"><label class="form-label">Имя *</label><input class="form-input" name="first_name" value="' + (e.first_name || '') + '" required></div>';
-    html += '<div class="form-group"><label class="form-label">Отчество</label><input class="form-input" name="middle_name" value="' + (e.middle_name || '') + '"></div>';
-    html += '<div class="form-group"><label class="form-label">Должность *</label><input class="form-input" name="position" value="' + (e.position || '') + '" required></div>';
-    html += '<div class="form-group"><label class="form-label">Логин *</label><input class="form-input" name="username" value="' + (e.username || '') + '" required></div>';
+    html += '<div class="form-group"><label class="form-label">Фамилия *</label><input class="form-input" name="last_name" value="' + escapeHtml(e.last_name || '') + '" required></div>';
+    html += '<div class="form-group"><label class="form-label">Имя *</label><input class="form-input" name="first_name" value="' + escapeHtml(e.first_name || '') + '" required></div>';
+    html += '<div class="form-group"><label class="form-label">Отчество</label><input class="form-input" name="middle_name" value="' + escapeHtml(e.middle_name || '') + '"></div>';
+    html += '<div class="form-group"><label class="form-label">Должность *</label><input class="form-input" name="position" value="' + escapeHtml(e.position || '') + '" required></div>';
+    html += '<div class="form-group"><label class="form-label">Логин *</label><input class="form-input" name="username" value="' + escapeHtml(e.username || '') + '" required></div>';
     html += '<div class="form-group"><label class="form-label">' + (e.id ? 'Новый пароль' : 'Пароль *') + '</label><input class="form-input" type="password" name="password" ' + (e.id ? '' : 'required') + '></div>';
     html += '<div class="form-group"><label class="form-label">Роль</label><select class="form-select" name="role">';
     html += '<option value="user"' + (e.role === 'user' ? ' selected' : '') + '>Пользователь</option>';
@@ -1953,9 +2272,9 @@ function renderProfile() {
     var html = `
         <div class="profile-card section-card">
             <div class="profile-header">
-                <div class="profile-avatar-lg">${initials.toUpperCase()}</div>
-                <div class="profile-name">${fullName}</div>
-                <div class="profile-position">${u.position || '—'}</div>
+                <div class="profile-avatar-lg">${escapeHtml(initials.toUpperCase())}</div>
+                <div class="profile-name">${escapeHtml(fullName)}</div>
+                <div class="profile-position">${escapeHtml(u.position || '—')}</div>
                 <span class="badge ${roleBadges[u.role] || ''}" style="margin-top:8px">${roleMap[u.role] || u.role}</span>
             </div>
             
@@ -1964,7 +2283,7 @@ function renderProfile() {
                     <div class="detail-group-title">Учётные данные</div>
                     <div class="detail-row">
                         <span class="detail-label">Логин</span>
-                        <span class="detail-value">${u.username}</span>
+                        <span class="detail-value">${escapeHtml(u.username)}</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">ID сотрудника</span>
@@ -1980,19 +2299,19 @@ function renderProfile() {
                     <div class="detail-group-title">Личная информация</div>
                     <div class="detail-row">
                         <span class="detail-label">Фамилия</span>
-                        <span class="detail-value">${u.last_name || '—'}</span>
+                        <span class="detail-value">${escapeHtml(u.last_name || '—')}</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Имя</span>
-                        <span class="detail-value">${u.first_name || '—'}</span>
+                        <span class="detail-value">${escapeHtml(u.first_name || '—')}</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Отчество</span>
-                        <span class="detail-value">${u.middle_name || '—'}</span>
+                        <span class="detail-value">${escapeHtml(u.middle_name || '—')}</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Должность</span>
-                        <span class="detail-value">${u.position || '—'}</span>
+                        <span class="detail-value">${escapeHtml(u.position || '—')}</span>
                     </div>
                 </div>
                 
@@ -2000,11 +2319,11 @@ function renderProfile() {
                     <div class="detail-group-title">Активность</div>
                     <div class="detail-row">
                         <span class="detail-label">Последний вход</span>
-                        <span class="detail-value" id="lastLoginValue">${lastLogin}</span>
+                        <span class="detail-value" id="lastLoginValue">${escapeHtml(lastLogin)}</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Дата регистрации</span>
-                        <span class="detail-value">${registeredAt}</span>
+                        <span class="detail-value">${escapeHtml(registeredAt)}</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Текущая сессия</span>
@@ -2039,7 +2358,8 @@ function renderProfile() {
         </div>
     `;
 
-    document.getElementById('contentArea').innerHTML = html;
+    const contentArea = document.getElementById('contentArea');
+    if (contentArea) contentArea.innerHTML = html;
     startSessionTimer();
 }
 
