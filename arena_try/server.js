@@ -30,7 +30,7 @@ app.use('/stikers', express.static(path.join(__dirname, 'stikers')));
 const db = mysql.createPool({
     host: 'localhost',
     user: 'root',
-    password: 'root',
+    password: 'Root_123!@#',
     database: 'istok',
     waitForConnections: true,
     connectionLimit: 10
