@@ -30,7 +30,7 @@ app.use('/stikers', express.static(path.join(__dirname, 'stikers')));
 const db = mysql.createPool({
     host: 'localhost',
     user: 'root',
-    password: 'Root_123!@#',
+    password: 'root',
     database: 'istok',
     waitForConnections: true,
     connectionLimit: 10
@@ -70,7 +70,8 @@ function canDelete(req, res, next) {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Недостаточно прав. Только администратор может удалять.' });
     next();
 }
-// ============ ФУНКЦИЯ ГЕНЕРАЦИИ НАКЛЕЙКИ (С ПОДДЕРЖКОЙ КИРИЛЛИЦЫ) ============
+
+// ============ ФУНКЦИЯ ГЕНЕРАЦИИ НАКЛЕЙКИ ============
 async function generateSimpleStickerPDF(serialNumber, modification = "ISN41508T3", article = "КРПГ.465614.001") {
     return new Promise(async (resolve, reject) => {
         let qrImagePath = null;
@@ -83,7 +84,6 @@ async function generateSimpleStickerPDF(serialNumber, modification = "ISN41508T3
             const stream = fs.createWriteStream(pdfPath);
             doc.pipe(stream);
 
-            // Подключаем шрифт с кириллицей
             const fontRegularPath = path.join(__dirname, 'Roboto-Regular.ttf');
             let regularFont = 'Helvetica';
 
@@ -93,29 +93,24 @@ async function generateSimpleStickerPDF(serialNumber, modification = "ISN41508T3
                 console.log('✅ Шрифт загружен');
             }
 
-            // Рамка
             doc.rect(2, 2, doc.page.width - 4, doc.page.height - 4)
                .lineWidth(0.5)
                .stroke();
 
-            // Логотип "ИСТОК" — по центру сверху
             doc.fontSize(12)
                .font(regularFont)
                .fillColor('#e03131')
                .text('ИСТОК', 0, 5, { width: 150, align: 'center' });
 
-            // "АО «НПП «Исток»" — по центру под логотипом
             doc.fillColor('black')
                .fontSize(8)
                .text('АО «НПП «Исток»', 0, 17, { width: 150, align: 'center' });
 
-            // Разделительная линия
             doc.moveTo(8, 26)
                .lineTo(142, 26)
                .lineWidth(0.3)
                .stroke();
 
-            // Данные — слева, занимают левую часть
             let yPos = 31;
             const leftMargin = 8;
             const labelWidth = 45;
@@ -125,37 +120,30 @@ async function generateSimpleStickerPDF(serialNumber, modification = "ISN41508T3
                .fillColor('black')
                .font(regularFont);
 
-            // Наименование устройства
             doc.text('Изделие:', leftMargin, yPos, { width: labelWidth });
             doc.text(modification, valueStart, yPos, { width: 70 });
             yPos += 7;
 
-            // Обозначение
             doc.text('Обозначение:', leftMargin, yPos, { width: labelWidth });
             doc.text(article, valueStart, yPos, { width: 70 });
             yPos += 7;
 
-            // Серийный номер
             doc.text('SN:', leftMargin, yPos, { width: labelWidth });
             doc.text(serialNumber, valueStart, yPos, { width: 70 });
             yPos += 7;
 
-            // Технические условия
             doc.text('ТУ:', leftMargin, yPos, { width: labelWidth });
             doc.text('КРПГ.465614.001 ТУ', valueStart, yPos, { width: 70 });
             yPos += 7;
 
-            // Дата изготовления
             const currentDate = new Date().toLocaleDateString('ru-RU');
             doc.text('Дата:', leftMargin, yPos, { width: labelWidth });
             doc.text(currentDate, valueStart, yPos, { width: 70 });
             yPos += 7;
 
-            // Упаковщик
             doc.text('Упаковщик:', leftMargin, yPos, { width: labelWidth });
             doc.text('__________', valueStart, yPos, { width: 70 });
 
-            // QR-код — справа снизу
             try {
                 const qrBuffer = await QRCode.toBuffer(serialNumber, {
                     errorCorrectionLevel: 'M',
@@ -204,7 +192,6 @@ async function generateSimpleStickerPDF(serialNumber, modification = "ISN41508T3
     });
 }
 
-// Функция для получения артикула по типу устройства
 async function getDeviceArticle(deviceType) {
     const articles = {
         "ISN41508T3": "КРПГ.465614.001",
@@ -494,13 +481,6 @@ app.put('/api/devices/:id', auth, canEdit, async (req, res) => {
     }
 });
 
-app.put('/api/production-places/:id', auth, adminOnly, async (req, res) => {
-  try {
-    await db.query('UPDATE place_of_production SET name=?, code=? WHERE id=?', [req.body.name, req.body.code, req.params.id]);
-    res.json({ message: 'Обновлено' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
 app.delete('/api/devices/:id', auth, canDelete, async (req, res) => {
     try {
         await db.query('UPDATE boards SET device_id = NULL WHERE device_id = ?', [req.params.id]);
@@ -712,6 +692,7 @@ app.post('/api/stands/diagnostics', auth, async (req, res) => {
     }
 });
 
+// ============ СТЕНД СБОРКИ С ПРОВЕРКОЙ СОВМЕСТИМОСТИ ============
 app.post('/api/stands/assembly', auth, async (req, res) => {
     try {
         const { board_serial_numbers, case_serial_number, device_serial_number, device_type_id } = req.body;
@@ -722,7 +703,10 @@ app.post('/api/stands/assembly', auth, async (req, res) => {
 
         const placeholders = board_serial_numbers.map(() => '?').join(',');
         const [boards] = await db.query(
-            'SELECT * FROM boards WHERE serial_number IN (' + placeholders + ')',
+            `SELECT b.*, bt.name as board_type_name, bt.code as board_type_code, bt.compatible_with_device_code 
+             FROM boards b 
+             LEFT JOIN board_type bt ON b.board_type_id = bt.id 
+             WHERE b.serial_number IN (` + placeholders + `)`,
             board_serial_numbers
         );
 
@@ -740,6 +724,20 @@ app.post('/api/stands/assembly', auth, async (req, res) => {
                 return res.status(400).json({ error: board.serial_number + ' стадия: ' + board.current_stage });
             }
         }
+
+        // ============ ПРОВЕРКА СОВМЕСТИМОСТИ ПЛАТ ============
+        const [deviceTypes] = await db.query('SELECT code FROM device_type WHERE id = ?', [device_type_id || 1]);
+        if (!deviceTypes.length) return res.status(400).json({ error: 'Неизвестный тип устройства' });
+        const targetDeviceCode = deviceTypes[0].code;
+
+        for (const board of boards) {
+            if (board.compatible_with_device_code && board.compatible_with_device_code !== targetDeviceCode) {
+                return res.status(400).json({ 
+                    error: `Плата ${board.serial_number} (${board.board_type_name || '?'}) предназначена для устройств типа ${board.compatible_with_device_code}, а вы собираете ${targetDeviceCode}.` 
+                });
+            }
+        }
+        // ========================================================
 
         const now = new Date();
         const dateStr = now.toISOString().split('T')[0];
@@ -854,7 +852,6 @@ app.post('/api/stands/packaging', auth, async (req, res) => {
             [device.id, device_serial_number, 'Упаковка завершена', 'packaging', req.user.id, now]
         );
 
-        // ГЕНЕРАЦИЯ НАКЛЕЙКИ (С ПОДДЕРЖКОЙ КИРИЛЛИЦЫ)
         let stickerUrl = null;
         try {
             const deviceType = device.type || "ISN41508T3";
@@ -902,6 +899,10 @@ app.post('/api/production-places', auth, adminOnly, async (req, res) => {
 });
 app.delete('/api/production-places/:id', auth, adminOnly, async (req, res) => {
     try { await db.query('DELETE FROM place_of_production WHERE id = ?', [req.params.id]); res.json({ message: 'Удалено' }); }
+    catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.put('/api/production-places/:id', auth, adminOnly, async (req, res) => {
+    try { await db.query('UPDATE place_of_production SET name=?, code=? WHERE id=?', [req.body.name, req.body.code, req.params.id]); res.json({ message: 'Обновлено' }); }
     catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1001,13 +1002,6 @@ app.post('/api/upload-image', auth, canEdit, upload.single('image'), (req, res) 
         return res.status(400).json({ error: 'Файл не загружен' });
     }
     res.json({ path: '/uploads/' + req.file.filename });
-});
-
-app.put('/api/production-places/:id', auth, adminOnly, async (req, res) => {
-  try {
-    await db.query('UPDATE place_of_production SET name=?, code=? WHERE id=?', [req.body.name, req.body.code, req.params.id]);
-    res.json({ message: 'Обновлено' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ==========================================
