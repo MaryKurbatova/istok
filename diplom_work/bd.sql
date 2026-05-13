@@ -313,6 +313,20 @@ CREATE TABLE statistic (
 
 SET FOREIGN_KEY_CHECKS = 1;
 
+CREATE TABLE cases (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    serial_number VARCHAR(255) NOT NULL UNIQUE,
+    case_type VARCHAR(100),
+    current_stage VARCHAR(50) DEFAULT 'new',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Добавить несколько тестовых корпусов
+INSERT INTO cases (serial_number, case_type) VALUES
+('CASE-RS-001', 'RS-корпус'),
+('CASE-RS-002', 'RS-корпус'),
+('CASE-SA-001', 'SA-корпус');
+
 -- ========== DATA ==========
 
 INSERT INTO device_type (name, code) VALUES
@@ -377,6 +391,9 @@ INSERT INTO employees (last_name, first_name, middle_name, position, username, p
 ('Администратор','Главный','Системович','Главный администратор','admin','admin123','admin'),
 ('Соколов','Андрей','Викторович','Технолог','sokolov_a','123','user'),
 ('Оператор','Иван','Петрович','Оператор','operator','123','operator');
+
+INSERT INTO employees (last_name, first_name, middle_name, position, username, password, role) VALUES
+('Иванов','Алексей','Петрович','Технолог визуального осмотра','invalid','invalid','123');
 
 -- Платы для устройства 1 (RS)
 INSERT INTO boards (board_type_id, serial_number, current_stage, visual_inspection_passed, visual_inspection_date, visual_inspection_employee_id, diagnostics_passed, diagnostics_date, diagnostics_employee_id, assembly_passed, assembly_date, assembly_employee_id) VALUES

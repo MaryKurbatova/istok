@@ -232,7 +232,7 @@ async function loadUser() {
 }
 
 function logout() {
-    api('/api/logout', { method: 'POST' }).catch(() => { });
+    api('/api/logout', { method: 'POST' }).catch(() => {});
     localStorage.removeItem('token');
     location.href = '/';
 }
@@ -433,10 +433,7 @@ function renderPipeline(currentStage, isBoard) {
 }
 
 function getPlaceIcon(name) {
-    return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                <circle cx="12" cy="10" r="3"></circle>
-            </svg>`;
+    return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>`;
 }
 
 // ============ DEVICES ============
@@ -488,7 +485,7 @@ function renderDevicesPage() {
 
     html += '<div class="action-panel">';
     html += '<div class="search-input-wrap">';
-    html += '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
+    html += '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>';
     html += '<input type="text" class="search-input" placeholder="Поиск..." oninput="filterDevices()" id="searchInput">';
     html += '</div>';
     html += '<select class="filter-select" onchange="filterDevices()" id="typeFilter"><option value="">Все типы</option>' + typeOptions + '</select>';
@@ -536,10 +533,10 @@ function renderDeviceCards() {
         html += '<span style="font-size:12px;color:var(--text-muted)">' + (d.manufactures_date || '—') + '</span>';
         html += '<div class="cell-actions" onclick="event.stopPropagation()">';
         if (canEditFlag) {
-            html += '<button class="btn-icon" onclick="editDevice(' + d.id + ')" title="Редактировать"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>';
+            html += '<button class="btn-icon" onclick="editDevice(' + d.id + ')" title="Редактировать"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>';
         }
         if (isAdmin) {
-            html += '<button class="btn-icon danger" onclick="deleteDevice(' + d.id + ')" title="Удалить"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>';
+            html += '<button class="btn-icon danger" onclick="deleteDevice(' + d.id + ')" title="Удалить"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>';
         }
         html += '</div></div></div></div>';
     }
@@ -669,11 +666,11 @@ async function showAddDevice(data) {
     html += '<div class="form-group"><label class="form-label">Модификация</label><input class="form-input" name="type" value="' + escapeHtml(d.type || '') + '"></div>';
     html += '<div class="form-group"><label class="form-label">Дата производства</label><input class="form-input" type="date" name="manufactures_date" value="' + (d.manufactures_date || '') + '"></div>';
     html += '<div class="form-group"><label class="form-label">Место</label><select class="form-select" name="place_of_production_id"><option value="">—</option>' + makeSelectOptions(S.productionPlaces, 'code', 'name', d.place_of_production_id) + '</select></div>';
-    html += '<div class="form-group"><label class="form-label">Расположениые</label><select class="form-select" name="actual_location_id"><option value="">—</option>' + makeSelectOptions(S.locations, '', 'name', d.actual_location_id) + '</select></div>';
+    html += '<div class="form-group"><label class="form-label">Расположение</label><select class="form-select" name="actual_location_id"><option value="">—</option>' + makeSelectOptions(S.locations, '', 'name', d.actual_location_id) + '</select></div>';
     html += '<div class="form-group"><label class="form-label">Версия ОС</label><input class="form-input" name="version_os" value="' + escapeHtml(d.version_os || '') + '"></div>';
-    html += ' <div class="form-group"> <label class="form-label">Изображение</label> <input type="file" id="deviceImageInput" class="form-input" accept="image/*" onchange="previewDeviceImage()"> </div>';
-    html += ' <div id="imagePreview" style="margin-top:10px;text-align:center"> </div>';
-    html += ' <input type="hidden" id="uploadedImagePath" name="image_path" value="' + escapeHtml(d.image_path || '') + '">';
+    html += '  <div class="form-group">  <label class="form-label">Изображение</label>  <input type="file" id="deviceImageInput" class="form-input" accept="image/*" onchange="previewDeviceImage()">  </div>';
+    html += '  <div id="imagePreview" style="margin-top:10px;text-align:center">  </div>';
+    html += '  <input type="hidden" id="uploadedImagePath" name="image_path" value="' + escapeHtml(d.image_path || '') + '">';
     html += '<div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button><button type="submit" class="btn btn-primary">' + (d.id ? 'Сохранить' : 'Создать') + '</button></div>';
     html += '</form>';
 
@@ -776,7 +773,7 @@ async function loadBoards() {
         html += '</div>';
 
         html += '<div class="action-panel">';
-        html += '<div class="search-input-wrap"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
+        html += '<div class="search-input-wrap"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>';
         html += '<input type="text" class="search-input" placeholder="Поиск..." oninput="applyBoardFilters()" id="boardSearch"></div>';
         
         html += '<select class="filter-select" onchange="applyBoardFilters()" id="boardTypeFilter">';
@@ -790,10 +787,10 @@ async function loadBoards() {
         }
         html += '</div>';
 
-        html += '<div class="table-card"><div class="table-wrapper"><table class="data-table"><thead><tr>';
+        html += '<div class="table-card"><div class="table-wrapper"><table class="data-table"><thead>';
         html += '<th>Серийный номер</th><th>Тип</th><th>Стадия</th><th>Устройство</th><th>Осмотр</th><th>Диагностика</th>';
         if (canEditFlag) html += '<th>Действия</th>';
-        html += '</tr></thead><tbody id="boardsBody"></tbody></table></div></div>';
+        html += '</thead><tbody id="boardsBody"></tbody></table></div></div>';
 
         content.innerHTML = html;
         applyBoardFilters();
@@ -854,7 +851,7 @@ function renderBoardRows() {
         html += '<td>' + (b.visual_inspection_passed ? '<span class="badge badge-success">Пройден</span>' : '<span class="badge badge-neutral">—</span>') + '</td>';
         html += '<td>' + (b.diagnostics_passed ? '<span class="badge badge-success">Пройдена</span>' : '<span class="badge badge-neutral">—</span>') + '</td>';
         if (canEditFlag) {
-            html += '<td><div class="cell-actions"><button class="btn-icon danger" onclick="deleteBoard(' + b.id + ')" title="Удалить"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></tr>';
+            html += '<td><div class="cell-actions"><button class="btn-icon danger" onclick="deleteBoard(' + b.id + ')" title="Удалить"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div></td>';
         }
         html += '</tr>';
     }
@@ -949,31 +946,45 @@ async function showBoardDetails(id) {
     }
 }
 
-// ============ СТЕНДЫ ============
+// ============ STANDS ============
+
+// Вспомогательная функция для заполнения выпадающего списка
+function populateStandDatalist(listId, items, valueKey) {
+    const datalist = document.getElementById(listId);
+    if (!datalist) return;
+    
+    datalist.innerHTML = '';
+    items.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item[valueKey];
+        datalist.appendChild(option);
+    });
+}
+
 function showStandResult(msg, type = 'success') {
     const el = document.getElementById('standResult');
     if (el) {
         el.className = 'stand-result ' + type;
-        el.textContent = msg;
+        el.innerHTML = '<h4>' + (type === 'success' ? '✓ ' : '✗ ') + msg + '</h4>';
     }
 }
 
+// 1. Визуальный осмотр
 function renderStandVisual() {
     const contentArea = document.getElementById('contentArea');
     if (!contentArea) return;
+    
     contentArea.innerHTML = `
         <div class="stand-workstation">
             <div class="stand-header">
                 <h2>Стенд визуального осмотра</h2>
-                <p class="stand-instruction">Отсканируйте серийный номер платы. Проверка качества пайки под микроскопом. Только новые платы.</p>
-            </div>
-            <div class="stand-image-box">
-                <img src="/images/plata.jpg" alt="Плата" class="stand-img" onerror="this.style.display='none'">
+                <p class="stand-instruction">Отсканируйте или выберите плату. Доступны только новые.</p>
             </div>
             <div class="stand-form">
                 <div class="stand-input-group">
                     <label>Серийный номер платы</label>
-                    <input type="text" id="visualSn" class="stand-qr-input" placeholder="Сканируйте QR-код..." autocomplete="off" autofocus>
+                    <input type="text" id="visualSn" class="stand-qr-input" list="visual-boards-list" placeholder="Нажмите для выбора или сканируйте..." autocomplete="off">
+                    <datalist id="visual-boards-list"></datalist>
                 </div>
                 <div class="stand-actions">
                     <button onclick="submitVisual('ok')" class="btn-stand btn-ok">Годна</button>
@@ -981,52 +992,59 @@ function renderStandVisual() {
                 </div>
             </div>
             <div class="stand-result" id="standResult"></div>
-        </div>
-    `;
-    setTimeout(() => {
-        const input = document.getElementById('visualSn');
-        if (input) input.focus();
-    }, 100);
+        </div>`;
+
+    // Загружаем список при фокусе
+    const input = document.getElementById('visualSn');
+    if (input) {
+        input.addEventListener('focus', async function() {
+            try {
+                const boards = await api('/api/boards');
+                const availableBoards = boards.filter(b => b.current_stage === 'new');
+                populateStandDatalist('visual-boards-list', availableBoards, 'serial_number');
+            } catch (e) {
+                console.error('Ошибка загрузки плат:', e);
+            }
+        });
+        input.focus();
+    }
 }
 
 async function submitVisual(result) {
     const sn = document.getElementById('visualSn')?.value.trim();
     if (!sn) return showStandResult('Введите серийный номер', 'error');
-    showStandResult('Проверка...', 'success');
+    showStandResult('⏳ Проверка...', 'info');
     try {
-        const r = await api('/api/stands/visual-inspection', {
+        await api('/api/stands/visual-inspection', {
             method: 'POST',
-            body: JSON.stringify({
-                serial_number: sn,
-                result: result === 'ok',
-                comment: result === 'ok' ? 'Осмотр пройден' : 'Брак пайки'
-            })
+            body: JSON.stringify({ serial_number: sn, result: result === 'ok', comment: result === 'ok' ? 'Осмотр пройден' : 'Брак пайки' })
         });
-        showStandResult(r.message, 'success');
+        showStandResult('Визуальный осмотр успешно пройден!', 'success');
         document.getElementById('visualSn').value = '';
         document.getElementById('visualSn').focus();
         if (result !== 'ok') loadRepairItems();
-    } catch (e) {
-        showStandResult(e.message, 'error');
+        toast('Визуальный осмотр завершён', 'success');
+    } catch (e) { 
+        showStandResult(e.message, 'error'); 
     }
 }
 
+// 2. Диагностика
 function renderStandDiag() {
     const contentArea = document.getElementById('contentArea');
     if (!contentArea) return;
+    
     contentArea.innerHTML = `
         <div class="stand-workstation">
             <div class="stand-header">
                 <h2>Стенд диагностики</h2>
-                <p class="stand-instruction">Отсканируйте серийный номер платы. Базовые проверки: порты, тестовая ОС, диски, память.</p>
-            </div>
-            <div class="stand-image-box">
-                <img src="/images/plata.jpg" alt="Плата" class="stand-img" onerror="this.style.display='none'">
+                <p class="stand-instruction">Выберите плату, прошедшую визуальный осмотр.</p>
             </div>
             <div class="stand-form">
                 <div class="stand-input-group">
                     <label>Серийный номер платы</label>
-                    <input type="text" id="diagSn" class="stand-qr-input" placeholder="Сканируйте QR-код..." autocomplete="off" autofocus>
+                    <input type="text" id="diagSn" class="stand-qr-input" list="diag-boards-list" placeholder="Нажмите для выбора или сканируйте..." autocomplete="off">
+                    <datalist id="diag-boards-list"></datalist>
                 </div>
                 <div class="stand-actions">
                     <button onclick="submitDiag('ok')" class="btn-stand btn-ok">Пройдена</button>
@@ -1034,124 +1052,144 @@ function renderStandDiag() {
                 </div>
             </div>
             <div class="stand-result" id="standResult"></div>
-        </div>
-    `;
-    setTimeout(() => {
-        const input = document.getElementById('diagSn');
-        if (input) input.focus();
-    }, 100);
+        </div>`;
+
+    const input = document.getElementById('diagSn');
+    if (input) {
+        input.addEventListener('focus', async function() {
+            try {
+                const boards = await api('/api/boards');
+                const availableBoards = boards.filter(b => b.current_stage === 'visual_ok');
+                populateStandDatalist('diag-boards-list', availableBoards, 'serial_number');
+            } catch (e) {
+                console.error('Ошибка загрузки плат:', e);
+            }
+        });
+        input.focus();
+    }
 }
 
 async function submitDiag(result) {
     const sn = document.getElementById('diagSn')?.value.trim();
     if (!sn) return showStandResult('Введите серийный номер', 'error');
-    showStandResult('Запуск тестов...', 'success');
+    showStandResult('⏳ Запуск тестов...', 'info');
     try {
-        const r = await api('/api/stands/diagnostics', {
+        await api('/api/stands/diagnostics', {
             method: 'POST',
-            body: JSON.stringify({
-                serial_number: sn,
-                result: result === 'ok',
+            body: JSON.stringify({ 
+                serial_number: sn, 
+                result: result === 'ok', 
                 comment: result === 'ok' ? 'Диагностика пройдена' : 'Ошибка теста',
-                ports_ok: true,
-                os_installed: true,
-                disks_ok: true,
-                memory_ok: true
+                ports_ok: result === 'ok',
+                os_installed: result === 'ok',
+                disks_ok: result === 'ok',
+                memory_ok: result === 'ok',
+                ip_address: '192.168.1.100',
+                stand_name: 'Стенд Д-1'
             })
         });
-        showStandResult(r.message, 'success');
+        showStandResult('Диагностика успешно пройдена!', 'success');
         document.getElementById('diagSn').value = '';
         document.getElementById('diagSn').focus();
         if (result !== 'ok') loadRepairItems();
-    } catch (e) {
-        showStandResult(e.message, 'error');
+        toast('Диагностика завершена', 'success');
+    } catch (e) { 
+        showStandResult(e.message, 'error'); 
     }
 }
 
+// 3. Сборка
 function renderStandAssembly() {
     const contentArea = document.getElementById('contentArea');
     if (!contentArea) return;
+    
     contentArea.innerHTML = `
         <div class="stand-workstation">
             <div class="stand-header">
                 <h2>Стенд сборки</h2>
-                <p class="stand-instruction">Отсканируйте плату, корпус и присвойте серийный номер изделию. Привязка компонентов.</p>
-            </div>
-            <div class="stand-image-box">
-                <img src="/images/plata.jpg" alt="Платы" class="stand-img" onerror="this.style.display='none'">
+                <p class="stand-instruction">Выберите плату, прошедшую диагностику, и отсканируйте корпус/изделие.</p>
             </div>
             <div class="stand-form">
                 <div class="stand-input-group">
                     <label>Серийный номер ПЛАТЫ</label>
-                    <input type="text" id="asmBoard" class="stand-qr-input" placeholder="Сканируйте плату..." autocomplete="off" onkeydown="handleScannerKey(event)">
+                    <input type="text" id="asmBoard" class="stand-qr-input" list="asm-boards-list" placeholder="Нажмите для выбора..." autocomplete="off">
+                    <datalist id="asm-boards-list"></datalist>
                 </div>
                 <div class="stand-input-group">
                     <label>Серийный номер КОРПУСА</label>
                     <input type="text" id="asmCase" class="stand-qr-input" placeholder="Сканируйте корпус..." autocomplete="off" onkeydown="handleScannerKey(event)">
                 </div>
                 <div class="stand-input-group">
-                    <label>Серийный номер ИЗДЕЛИЯ (новый)</label>
-                    <input type="text" id="asmProduct" class="stand-qr-input" placeholder="Сканируйте новую этикетку..." autocomplete="off" onkeydown="handleScannerKey(event)">
+                    <label>Серийный номер ИЗДЕЛИЯ</label>
+                    <input type="text" id="asmProduct" class="stand-qr-input" placeholder="Сканируйте изделие..." autocomplete="off" onkeydown="handleScannerKey(event)">
                 </div>
                 <div class="stand-actions">
                     <button onclick="submitAssembly()" class="btn-stand btn-primary-stand">Собрать устройство</button>
                 </div>
             </div>
             <div class="stand-result" id="standResult"></div>
-        </div>
-    `;
-    setTimeout(() => {
-        const input = document.getElementById('asmBoard');
-        if (input) input.focus();
-    }, 100);
+        </div>`;
+
+    const input = document.getElementById('asmBoard');
+    if (input) {
+        input.addEventListener('focus', async function() {
+            try {
+                const boards = await api('/api/boards');
+                const availableBoards = boards.filter(b => b.current_stage === 'diagnostics_ok');
+                populateStandDatalist('asm-boards-list', availableBoards, 'serial_number');
+            } catch (e) {
+                console.error('Ошибка загрузки плат:', e);
+            }
+        });
+        input.focus();
+    }
 }
 
 async function submitAssembly() {
     const boardSn = document.getElementById('asmBoard')?.value.trim();
     const caseSn = document.getElementById('asmCase')?.value.trim();
     const prodSn = document.getElementById('asmProduct')?.value.trim();
-    if (!boardSn || !caseSn || !prodSn) {
-        return showStandResult('Заполните все поля', 'error');
-    }
-    showStandResult('Сборка...', 'success');
+    if (!boardSn || !caseSn || !prodSn) return showStandResult('Заполните все поля', 'error');
+    showStandResult('⏳ Сборка...', 'info');
     try {
         const r = await api('/api/stands/assembly', {
             method: 'POST',
-            body: JSON.stringify({
-                board_serial_numbers: [boardSn],
-                case_serial_number: caseSn,
-                device_serial_number: prodSn,
-                device_type_id: 1
+            body: JSON.stringify({ 
+                board_serial_numbers: [boardSn], 
+                case_serial_number: caseSn, 
+                device_serial_number: prodSn, 
+                device_type_id: 1 
             })
         });
-        showStandResult(r.message + ' (ID: ' + r.device_id + ')', 'success');
+        showStandResult('Устройство успешно собрано! (ID: ' + r.device_id + ')', 'success');
         document.getElementById('asmBoard').value = '';
         document.getElementById('asmCase').value = '';
         document.getElementById('asmProduct').value = '';
         document.getElementById('asmBoard').focus();
         loadDevices();
         loadBoards();
-    } catch (e) {
-        showStandResult(e.message, 'error');
+        toast('Сборка завершена', 'success');
+    } catch (e) { 
+        showStandResult(e.message, 'error'); 
     }
 }
 
+// 4. ПСИ
 function renderStandPSI() {
     const contentArea = document.getElementById('contentArea');
     if (!contentArea) return;
+    
     contentArea.innerHTML = `
         <div class="stand-workstation">
             <div class="stand-header">
                 <h2>Стенд ПСИ</h2>
-                <p class="stand-instruction">Отсканируйте серийный номер изделия. Прошивка актуальным ПО и финальные тесты.</p>
-            </div>
-            <div class="stand-image-box">
-                <img src="/images/etic.jpg" alt="Изделие" class="stand-img" onerror="this.style.display='none'">
+                <p class="stand-instruction">Выберите собранное изделие для финальных тестов.</p>
             </div>
             <div class="stand-form">
                 <div class="stand-input-group">
                     <label>Серийный номер изделия</label>
-                    <input type="text" id="psiSn" class="stand-qr-input" placeholder="Сканируйте QR-код изделия..." autocomplete="off" autofocus>
+                    <input type="text" id="psiSn" class="stand-qr-input" list="psi-devices-list" placeholder="Нажмите для выбора или сканируйте..." autocomplete="off">
+                    <datalist id="psi-devices-list"></datalist>
                 </div>
                 <div class="stand-actions">
                     <button onclick="submitPSI('ok')" class="btn-stand btn-ok">ПСИ пройден</button>
@@ -1159,82 +1197,102 @@ function renderStandPSI() {
                 </div>
             </div>
             <div class="stand-result" id="standResult"></div>
-        </div>
-    `;
-    setTimeout(() => {
-        const input = document.getElementById('psiSn');
-        if (input) input.focus();
-    }, 100);
+        </div>`;
+
+    const input = document.getElementById('psiSn');
+    if (input) {
+        input.addEventListener('focus', async function() {
+            try {
+                const devices = await api('/api/devices');
+                const availableDevices = devices.filter(d => d.current_stage === 'assembled');
+                populateStandDatalist('psi-devices-list', availableDevices, 'product_serial_number');
+            } catch (e) {
+                console.error('Ошибка загрузки устройств:', e);
+            }
+        });
+        input.focus();
+    }
 }
 
 async function submitPSI(result) {
     const sn = document.getElementById('psiSn')?.value.trim();
     if (!sn) return showStandResult('Введите серийный номер', 'error');
-    showStandResult('Прошивка и тестирование...', 'success');
+    showStandResult('⏳ Прошивка и тестирование...', 'info');
     try {
-        const r = await api('/api/stands/psi', {
+        await api('/api/stands/psi', {
             method: 'POST',
-            body: JSON.stringify({
-                device_serial_number: sn,
-                result: result === 'ok',
-                comment: result === 'ok' ? 'ПСИ пройдено' : 'Ошибка ПСИ',
-                protocol_number: result === 'ok' ? 'PSI-' + Date.now() : '',
+            body: JSON.stringify({ 
+                device_serial_number: sn, 
+                result: result === 'ok', 
+                comment: result === 'ok' ? 'ПСИ пройдено' : 'Ошибка ПСИ', 
+                protocol_number: result === 'ok' ? 'PSI-' + Date.now() : '', 
                 firmware_version: 'production_latest',
-                ports_ok: true,
-                os_installed: true,
-                disks_ok: true,
-                memory_ok: true
+                ports_ok: result === 'ok',
+                os_installed: result === 'ok',
+                disks_ok: result === 'ok',
+                memory_ok: result === 'ok'
             })
         });
-        showStandResult(r.message, 'success');
+        showStandResult('ПСИ успешно пройден!', 'success');
         document.getElementById('psiSn').value = '';
         document.getElementById('psiSn').focus();
         if (result !== 'ok') loadRepairItems();
-    } catch (e) {
-        showStandResult(e.message, 'error');
+        toast('ПСИ завершён', 'success');
+    } catch (e) { 
+        showStandResult(e.message, 'error'); 
     }
 }
 
+// 5. Упаковка
 function renderStandPackaging() {
     const contentArea = document.getElementById('contentArea');
     if (!contentArea) return;
+    
     contentArea.innerHTML = `
         <div class="stand-workstation">
             <div class="stand-header">
                 <h2>Стенд упаковки</h2>
-                <p class="stand-instruction">Отсканируйте серийный номер изделия. Автоматическая генерация паспорта и этикетки.</p>
-            </div>
-            <div class="stand-image-box">
-                <img src="/images/etic.jpg" alt="Упаковка" class="stand-img" onerror="this.style.display='none'">
+                <p class="stand-instruction">Выберите изделие, прошедшее ПСИ.</p>
             </div>
             <div class="stand-form">
                 <div class="stand-input-group">
                     <label>Серийный номер изделия</label>
-                    <input type="text" id="packSn" class="stand-qr-input" placeholder="Сканируйте QR-код изделия..." autocomplete="off" autofocus>
+                    <input type="text" id="packSn" class="stand-qr-input" list="pack-devices-list" placeholder="Нажмите для выбора или сканируйте..." autocomplete="off">
+                    <datalist id="pack-devices-list"></datalist>
                 </div>
                 <div class="stand-actions">
                     <button onclick="submitPackaging()" class="btn-stand btn-primary-stand">Упаковать и напечатать</button>
                 </div>
             </div>
             <div class="stand-result" id="standResult"></div>
-        </div>
-    `;
-    setTimeout(() => {
-        const input = document.getElementById('packSn');
-        if (input) input.focus();
-    }, 100);
+        </div>`;
+
+    const input = document.getElementById('packSn');
+    if (input) {
+        input.addEventListener('focus', async function() {
+            try {
+                const devices = await api('/api/devices');
+                const availableDevices = devices.filter(d => d.current_stage === 'psi_ok');
+                populateStandDatalist('pack-devices-list', availableDevices, 'product_serial_number');
+            } catch (e) {
+                console.error('Ошибка загрузки устройств:', e);
+            }
+        });
+        input.focus();
+    }
 }
 
 async function submitPackaging() {
     const sn = document.getElementById('packSn')?.value.trim();
     if (!sn) return showStandResult('Введите серийный номер', 'error');
-    showStandResult('Упаковка и генерация документов...', 'success');
+    showStandResult('⏳ Упаковка и генерация документов...', 'info');
     try {
         const r = await api('/api/stands/packaging', {
             method: 'POST',
             body: JSON.stringify({ device_serial_number: sn, comment: 'Упаковано' })
         });
-        showStandResult(r.message, 'success');
+        showStandResult('Упаковка завершена!', 'success');
+        
         if (r.sticker_url) {
             const link = document.createElement('a');
             link.href = r.sticker_url;
@@ -1243,10 +1301,12 @@ async function submitPackaging() {
             link.click();
             document.body.removeChild(link);
         }
+        
         document.getElementById('packSn').value = '';
         document.getElementById('packSn').focus();
-    } catch (e) {
-        showStandResult(e.message, 'error');
+        toast('Упаковка завершена', 'success');
+    } catch (e) { 
+        showStandResult(e.message, 'error'); 
     }
 }
 
@@ -1424,7 +1484,7 @@ async function loadDeviceTypes() {
 
             <div class="action-panel">
                 <div class="search-input-wrap" style="flex:1;max-width:400px;">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                     <input type="text" class="search-input" placeholder="Поиск по коду или названию..." oninput="filterTypes(this.value)" id="typeSearch">
                 </div>
                 ${isAdmin ? '<button class="btn btn-primary" onclick="showAddType()">+ Добавить тип</button>' : ''}
@@ -1444,7 +1504,7 @@ async function loadDeviceTypes() {
         if (!types.length) {
             html = `
                 <div class="places-empty">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
                     <h3>Типы изделий не найдены</h3>
                     <p>Добавьте первый тип устройства, чтобы начать работу</p>
                     ${isAdmin ? '<button class="btn btn-primary" onclick="showAddType()">+ Создать тип</button>' : ''}
@@ -1545,11 +1605,11 @@ async function loadProductionPlaces() {
             <div class="action-panel">
                 <div class="search-input-wrap" style="flex:1;max-width:400px;">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"/>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                     </svg>
                     <input type="text" class="search-input" placeholder="Поиск по названию или коду..." 
-                           oninput="filterPlaces(this.value)" id="placeSearch" autocomplete="off">
+                          oninput="filterPlaces(this.value)" id="placeSearch" autocomplete="off">
                 </div>
                 ${isAdmin ? '<button class="btn btn-primary" onclick="showAddPlace()">+ Добавить место</button>' : ''}
             </div>
@@ -1563,8 +1623,8 @@ async function loadProductionPlaces() {
             html = `
                 <div class="places-empty">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                        <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                        <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
                     </svg>
                     <h3>Места производства не найдены</h3>
                     <p>Добавьте первое производственное место, чтобы начать работу</p>
@@ -1601,7 +1661,7 @@ function renderPlaceCards(places, stats, isAdmin) {
                         <span class="place-name">${escapeHtml(p.name || 'Без названия')}</span>
                     </div>
                     <div class="place-status-dot ${isActive ? 'active' : ''}" 
-                         title="${isActive ? 'Активно' : 'Не активно'}">
+                        title="${isActive ? 'Активно' : 'Не активно'}">
                     </div>
                 </div>
                 
@@ -1620,14 +1680,14 @@ function renderPlaceCards(places, stats, isAdmin) {
                 <div class="place-footer">
                     <button class="btn-icon" onclick="showEditPlace(${p.id})" title="Редактировать">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                         </svg>
                     </button>
                     <button class="btn-icon danger" onclick="deletePlace(${p.id})" title="Удалить">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="3 6 5 6 21 6"/>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                         </svg>
                     </button>
                 </div>
@@ -1662,8 +1722,8 @@ function filterPlaces(val) {
             msg.style.padding = '40px';
             msg.innerHTML = `
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <circle cx="11" cy="11" r="8"/>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
                 <p style="margin-top:12px">Ничего не найдено для "${escapeHtml(search)}"</p>
             `;
@@ -1680,7 +1740,7 @@ function showAddPlace() {
             <div class="form-group" style="margin-bottom:16px;">
                 <label class="form-label">Код *</label>
                 <input class="form-input" name="code" required placeholder="Например: 01" 
-                       pattern="[0-9]{2}" maxlength="2" style="text-transform:uppercase">
+                      pattern="[0-9]{2}" maxlength="2" style="text-transform:uppercase">
                 <small style="color:var(--text-muted);margin-top:4px;display:block;">2 цифры</small>
             </div>
             <div class="form-group" style="margin-bottom:20px;">
@@ -1704,7 +1764,7 @@ function showEditPlace(id) {
             <div class="form-group" style="margin-bottom:16px;">
                 <label class="form-label">Код *</label>
                 <input class="form-input" name="code" required value="${escapeHtml(place.code || '')}" 
-                       pattern="[0-9]{2}" maxlength="2" style="text-transform:uppercase">
+                      pattern="[0-9]{2}" maxlength="2" style="text-transform:uppercase">
             </div>
             <div class="form-group" style="margin-bottom:20px;">
                 <label class="form-label">Название *</label>
@@ -1904,7 +1964,7 @@ async function loadStatistics() {
                     <div class="metric-card">
                         <div class="metric-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
                             </svg>
                         </div>
                         <div class="metric-info">
@@ -1916,8 +1976,8 @@ async function loadStatistics() {
                     <div class="metric-card">
                         <div class="metric-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="4" y="4" width="16" height="16" rx="2"/>
-                                <path d="M9 9h6v6H9z"/>
+                                <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+                                <path d="M9 9h6v6H9z"></path>
                             </svg>
                         </div>
                         <div class="metric-info">
@@ -1929,10 +1989,10 @@ async function loadStatistics() {
                     <div class="metric-card">
                         <div class="metric-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                                <circle cx="9" cy="7" r="4"/>
-                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                             </svg>
                         </div>
                         <div class="metric-info">
@@ -1944,7 +2004,7 @@ async function loadStatistics() {
                     <div class="metric-card">
                         <div class="metric-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                                <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
                             </svg>
                         </div>
                         <div class="metric-info">
@@ -1958,7 +2018,7 @@ async function loadStatistics() {
                     <div class="chart-card">
                         <h3>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
                             </svg>
                             По типам устройств
                         </h3>
@@ -1978,7 +2038,7 @@ async function loadStatistics() {
                     <div class="chart-card">
                         <h3>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                                <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
                             </svg>
                             По стадиям производства
                         </h3>
@@ -1998,8 +2058,8 @@ async function loadStatistics() {
                     <div class="chart-card">
                         <h3>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                                <circle cx="12" cy="10" r="3"/>
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                <circle cx="12" cy="10" r="3"></circle>
                             </svg>
                             По местам производства
                         </h3>
@@ -2019,8 +2079,8 @@ async function loadStatistics() {
                     <div class="chart-card">
                         <h3>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"/>
-                                <polyline points="12 6 12 12 16 14"/>
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
                             </svg>
                             Последние операции
                         </h3>
@@ -2087,35 +2147,77 @@ async function loadEmployees() {
         var emps = await api('/api/employees');
         S.employees = emps || [];
 
-        var roleLabels = { admin: 'Админ', user: 'Пользователь', operator: 'Оператор' };
+        var roleLabels = { admin: 'Администратор', user: 'Пользователь', operator: 'Оператор' };
         var roleBadges = { admin: 'badge-error', user: 'badge-info', operator: 'badge-warning' };
 
-        var html = '<div class="action-panel"><button class="btn btn-primary" onclick="showAddEmp()">+ Добавить</button></div>';
-        html += '<div class="table-card"><div class="table-wrapper"><table class="data-table"><thead><tr><th>ФИО</th><th>Должность</th><th>Логин</th><th>Роль</th><th>Действия</th></tr></thead><tbody>';
+        var html = `
+            <div class="stats-grid" style="margin-bottom: 24px;">
+                <div class="stat-card">
+                    <div class="stat-info"><span class="stat-value">${S.employees.length}</span><span class="stat-label">Всего сотрудников</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info"><span class="stat-value">${S.employees.filter(e => e.role === 'admin').length}</span><span class="stat-label">Администраторов</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info"><span class="stat-value">${S.employees.filter(e => e.role === 'user').length}</span><span class="stat-label">Пользователей</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info"><span class="stat-value">${S.employees.filter(e => e.role === 'operator').length}</span><span class="stat-label">Операторов</span></div>
+                </div>
+            </div>
+            <div class="action-panel" style="margin-bottom: 24px;">
+                <button class="btn btn-primary" onclick="showAddEmp()">+ Добавить сотрудника</button>
+            </div>
+            <div class="employees-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+        `;
 
         for (var i = 0; i < S.employees.length; i++) {
             var e = S.employees[i];
-            html += '<tr>';
-            html += '<td><strong>' + escapeHtml(e.last_name + ' ' + e.first_name + ' ' + (e.middle_name || '')) + '</strong></td>';
-            html += '<td>' + escapeHtml(e.position) + '</td>';
-            html += '<td><code style="background:var(--bg-input);padding:2px 8px;border-radius:4px">' + escapeHtml(e.username) + '</code></td>';
-            html += '<td><span class="badge ' + (roleBadges[e.role] || 'badge-neutral') + '">' + (roleLabels[e.role] || e.role) + '</span></td>';
-            html += '<td><div class="cell-actions">';
-            html += '<button class="btn-icon" onclick="showEditEmp(' + e.id + ')">✎</button>';
-            html += '<button class="btn-icon danger" onclick="deleteEmp(' + e.id + ')">✕</button>';
-            html += '</div></td></tr>';
+            var fullName = e.last_name + ' ' + e.first_name + (e.middle_name ? ' ' + e.middle_name : '');
+            var initials = (e.first_name?.[0] || '') + (e.last_name?.[0] || '');
+            
+            html += `
+                <div class="employee-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; transition: all var(--transition);">
+                    <div class="employee-header" style="padding: 20px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, var(--bg-card), var(--bg-input));">
+                        <div class="employee-avatar" style="width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; flex-shrink: 0;">${escapeHtml(initials.toUpperCase() || '?')}</div>
+                        <div class="employee-info" style="flex: 1; min-width: 0;">
+                            <div class="employee-name" style="font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">${escapeHtml(fullName)}</div>
+                            <div class="employee-position" style="font-size: 12px; color: var(--text-muted);">${escapeHtml(e.position || '—')}</div>
+                        </div>
+                        <span class="badge ${roleBadges[e.role] || 'badge-neutral'}" style="flex-shrink: 0;">${roleLabels[e.role] || e.role}</span>
+                    </div>
+                    <div class="employee-body" style="padding: 16px 20px;">
+                        <div class="employee-detail" style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-light);">
+                            <span style="font-size: 13px; color: var(--text-secondary);">Логин:</span>
+                            <code style="background: var(--bg-input); padding: 2px 8px; border-radius: 4px; font-size: 12px;">${escapeHtml(e.username)}</code>
+                        </div>
+                        <div class="employee-detail" style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-light);">
+                            <span style="font-size: 13px; color: var(--text-secondary);">Дата создания:</span>
+                            <span style="font-size: 13px; color: var(--text-primary);">${e.created_at ? new Date(e.created_at).toLocaleDateString('ru') : '—'}</span>
+                        </div>
+                    </div>
+                    <div class="employee-footer" style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: var(--bg-card);">
+                        <button class="btn-icon" onclick="showEditEmp(${e.id})" title="Редактировать">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        </button>
+                        <button class="btn-icon danger" onclick="deleteEmp(${e.id})" title="Удалить">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            `;
         }
 
-        html += '</tbody></div></div>';
+        html += '</div>';
         content.innerHTML = html;
     } catch (e) {
-        content.innerHTML = '<div class="empty-state"><p>Ошибка</p></div>';
+        content.innerHTML = '<div class="empty-state"><p>Ошибка загрузки сотрудников: ' + e.message + '</p></div>';
     }
 }
 
 function showAddEmp(data) {
     var e = data || {};
-    var title = e.id ? 'Редактировать' : 'Новый сотрудник';
+    var title = e.id ? 'Редактировать сотрудника' : 'Новый сотрудник';
 
     var html = '<form onsubmit="saveEmp(event,' + (e.id || 'null') + ')"><div class="form-grid">';
     html += '<div class="form-group"><label class="form-label">Фамилия *</label><input class="form-input" name="last_name" value="' + escapeHtml(e.last_name || '') + '" required></div>';
@@ -2126,7 +2228,7 @@ function showAddEmp(data) {
     html += '<div class="form-group"><label class="form-label">' + (e.id ? 'Новый пароль' : 'Пароль *') + '</label><input class="form-input" type="password" name="password" ' + (e.id ? '' : 'required') + '></div>';
     html += '<div class="form-group"><label class="form-label">Роль</label><select class="form-select" name="role">';
     html += '<option value="user"' + (e.role === 'user' ? ' selected' : '') + '>Пользователь</option>';
-    html += '<option value="admin"' + (e.role === 'admin' ? ' selected' : '') + '>Админ</option>';
+    html += '<option value="admin"' + (e.role === 'admin' ? ' selected' : '') + '>Администратор</option>';
     html += '<option value="operator"' + (e.role === 'operator' ? ' selected' : '') + '>Оператор</option>';
     html += '</select></div>';
     html += '</div><div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button><button type="submit" class="btn btn-primary">' + (e.id ? 'Сохранить' : 'Создать') + '</button></div></form>';
@@ -2151,10 +2253,10 @@ async function saveEmp(event, id) {
     try {
         if (id) {
             await api('/api/employees/' + id, { method: 'PUT', body: JSON.stringify(data) });
-            toast('Обновлено', 'success');
+            toast('Сотрудник обновлён', 'success');
         } else {
             await api('/api/employees', { method: 'POST', body: JSON.stringify(data) });
-            toast('Создано', 'success');
+            toast('Сотрудник создан', 'success');
         }
         closeModal();
         loadEmployees();
@@ -2162,9 +2264,12 @@ async function saveEmp(event, id) {
 }
 
 async function deleteEmp(id) {
-    if (!confirm('Удалить?')) return;
-    try { await api('/api/employees/' + id, { method: 'DELETE' }); toast('Удалено', 'success'); loadEmployees(); }
-    catch (e) { showError(e.message); }
+    if (!confirm('Удалить сотрудника? Это действие нельзя отменить.')) return;
+    try { 
+        await api('/api/employees/' + id, { method: 'DELETE' }); 
+        toast('Сотрудник удалён', 'success'); 
+        loadEmployees(); 
+    } catch (e) { showError(e.message); }
 }
 
 // ============ PROFILE ============
@@ -2270,8 +2375,8 @@ function renderProfile() {
                 <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); text-align: center">
                     <button class="btn btn-secondary" onclick="showChangePassword()" style="margin-right: 12px">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                         </svg>
                         Сменить пароль
                     </button>

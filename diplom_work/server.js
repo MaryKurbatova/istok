@@ -192,6 +192,66 @@ async function generateSimpleStickerPDF(serialNumber, modification = "ISN41508T3
     });
 }
 
+// Генерация маленькой наклейки для паспорта
+async function generatePassportStickerPDF(serialNumber, modification = "ISN41508T3") {
+    return new Promise(async (resolve, reject) => {
+        let qrImagePath = null;
+        try {
+            const pdfPath = path.join(__dirname, 'stikers', `${serialNumber}-passport-sticker.pdf`);
+            const doc = new PDFDocument({
+                size: [80, 40],
+                margin: 0
+            });
+            const stream = fs.createWriteStream(pdfPath);
+            doc.pipe(stream);
+
+            doc.rect(1, 1, doc.page.width - 2, doc.page.height - 2)
+               .lineWidth(0.3)
+               .stroke();
+
+            doc.fontSize(8)
+               .fillColor('#e03131')
+               .text('ИСТОК', 0, 3, { width: 80, align: 'center' });
+
+            doc.fillColor('black')
+               .fontSize(6)
+               .text(`SN: ${serialNumber}`, 0, 14, { width: 80, align: 'center' });
+
+            doc.fontSize(5)
+               .text(modification, 0, 23, { width: 80, align: 'center' });
+
+            try {
+                const qrBuffer = await QRCode.toBuffer(serialNumber, {
+                    errorCorrectionLevel: 'M',
+                    margin: 0,
+                    width: 100
+                });
+
+                qrImagePath = path.join(__dirname, 'stikers', `temp_qr_pass_${Date.now()}.png`);
+                fs.writeFileSync(qrImagePath, qrBuffer);
+                doc.image(qrImagePath, 58, 4, { width: 18, height: 18 });
+            } catch (qrErr) {
+                console.warn('QR не сгенерирован:', qrErr.message);
+            }
+
+            doc.end();
+
+            stream.on('finish', () => {
+                if (qrImagePath && fs.existsSync(qrImagePath)) {
+                    setTimeout(() => {
+                        try { fs.unlinkSync(qrImagePath); } catch (e) {}
+                    }, 1000);
+                }
+                resolve('/stikers/' + `${serialNumber}-passport-sticker.pdf`);
+            });
+
+            stream.on('error', (err) => reject(err));
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
 async function getDeviceArticle(deviceType) {
     const articles = {
         "ISN41508T3": "КРПГ.465614.001",
@@ -288,6 +348,42 @@ app.post('/login', async (req, res) => {
     } catch (e) {
         console.error('Login error:', e);
         res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
+// ===== АВТОРИЗАЦИЯ ИНТЕГРАЦИЯ =====
+
+app.post('/login/integration', async (req, res) => {
+    const { username, password } = req.body;
+    
+    try {
+        const [rows] = await db.query(
+            'SELECT * FROM employees WHERE username = ? AND password = ?',
+            [username, password]
+        );
+        
+        if (rows.length > 0) {
+            const user = rows[0];
+            // Исключаем пароль из ответа (безопасность)
+            delete user.password;
+            
+            res.json({
+                success: true,
+                message: "Авторизация успешна",
+                user: user
+            });
+        } else {
+            res.status(401).json({
+                success: false,
+                message: "Неверный логин или пароль"
+            });
+        }
+    } catch (error) {
+        console.error('Ошибка БД:', error);
+        res.status(500).json({
+            success: false,
+            message: "Ошибка сервера. Попробуйте позже."
+        });
     }
 });
 
@@ -611,10 +707,29 @@ app.get('/api/board-types', auth, async (req, res) => {
 app.post('/api/stands/visual-inspection', auth, async (req, res) => {
     try {
         const { serial_number, result, comment } = req.body;
-        const [boards] = await db.query('SELECT * FROM boards WHERE serial_number = ?', [serial_number]);
-        if (!boards.length) return res.status(404).json({ error: 'Плата не найдена: ' + serial_number });
-
-        const board = boards[0];
+        
+        // Проверяем, существует ли плата
+        let [boards] = await db.query('SELECT * FROM boards WHERE serial_number = ?', [serial_number]);
+        let board;
+        let isNewBoard = false;
+        
+        if (!boards.length) {
+            // Если плата не найдена, создаём новую с типом MAIN по умолчанию
+            const [boardTypes] = await db.query('SELECT id FROM board_type WHERE code = ?', ['MAIN']);
+            const boardTypeId = boardTypes.length ? boardTypes[0].id : 1;
+            
+            const [result] = await db.query(
+                'INSERT INTO boards (board_type_id, serial_number, current_stage) VALUES (?, ?, ?)',
+                [boardTypeId, serial_number, 'new']
+            );
+            
+            boards = await db.query('SELECT * FROM boards WHERE id = ?', [result.insertId]);
+            board = boards[0];
+            isNewBoard = true;
+        } else {
+            board = boards[0];
+        }
+        
         if (board.current_stage !== 'new') {
             return res.status(400).json({ error: 'Плата уже на стадии: ' + board.current_stage });
         }
@@ -640,7 +755,7 @@ app.post('/api/stands/visual-inspection', auth, async (req, res) => {
             [board.id, serial_number, result ? 'Осмотр пройден' : 'Осмотр не пройден', 'visual_inspection', req.user.id, now]
         );
 
-        res.json({ message: 'Визуальный осмотр завершён', board_id: board.id });
+        res.json({ message: 'Визуальный осмотр завершён', board_id: board.id, is_new: isNewBoard });
     } catch (e) {
         console.error('Visual inspection error:', e);
         res.status(500).json({ error: e.message });
@@ -818,7 +933,7 @@ app.post('/api/stands/psi', auth, async (req, res) => {
 });
 
 // ==========================================
-// PACKAGING API С ГЕНЕРАЦИЕЙ НАКЛЕЙКИ
+// PACKAGING API С ГЕНЕРАЦИЕЙ НАКЛЕЕК
 // ==========================================
 app.post('/api/stands/packaging', auth, async (req, res) => {
     try {
@@ -853,17 +968,25 @@ app.post('/api/stands/packaging', auth, async (req, res) => {
         );
 
         let stickerUrl = null;
+        let passportStickerUrl = null;
+        
         try {
             const deviceType = device.type || "ISN41508T3";
             const article = await getDeviceArticle(deviceType);
+            
+            // Наклейка на коробку (большая)
             stickerUrl = await generateSimpleStickerPDF(device_serial_number, deviceType, article);
+            
+            // Наклейка в паспорт (маленькая)
+            passportStickerUrl = await generatePassportStickerPDF(device_serial_number, deviceType);
         } catch (e) {
-            console.warn('⚠️ Наклейка не сгенерирована:', e.message);
+            console.warn('⚠️ Наклейки не сгенерированы:', e.message);
         }
 
         res.json({
             message: 'Упаковка завершена!',
             sticker_url: stickerUrl,
+            passport_sticker_url: passportStickerUrl,
             device_id: device.id,
             device_serial_number: device_serial_number
         });
