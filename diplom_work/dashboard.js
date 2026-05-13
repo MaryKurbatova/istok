@@ -23,7 +23,9 @@ const S = {
     repairBoards: [],
     availableBoardsForVisual: [],
     availableBoardsForDiag: [],
-    availableDevicesForPSI: []
+    availableDevicesForPSI: [],
+    cases: [],
+    filteredCases: []
 };
 
 // ============ ЗАГРУЗКА ИЗОБРАЖЕНИЯ ============
@@ -314,6 +316,7 @@ function showContent(section) {
     const titles = {
         'devices': 'Устройства',
         'boards': 'Платы',
+        'cases': 'Корпуса',
         'stand-visual': 'Стенд визуального осмотра',
         'stand-diag': 'Стенд диагностики',
         'stand-assembly': 'Стенд сборки',
@@ -333,6 +336,7 @@ function showContent(section) {
     switch (section) {
         case 'devices': loadDevices(); break;
         case 'boards': loadBoards(); break;
+        case 'cases': loadCases(); break;
         case 'types': loadDeviceTypes(); break;
         case 'places': loadProductionPlaces(); break;
         case 'serial-structure': renderSerialStructure(); break;
@@ -843,7 +847,7 @@ function renderBoardRows() {
 
     for (var i = 0; i < S.filteredBoards.length; i++) {
         var b = S.filteredBoards[i];
-        html += '<tr>';
+        html += '</tr>';
         html += '<td><strong style="color:var(--primary);cursor:pointer" onclick="showBoardDetails(' + b.id + ')">' + escapeHtml(b.serial_number) + '</strong></td>';
         html += '<td><span class="badge badge-neutral">' + escapeHtml(b.board_type_name || '—') + '</span></td>';
         html += '<td><span class="badge ' + stageBadge(b.current_stage) + '">' + stageLabel(b.current_stage) + '</span></td>';
@@ -948,7 +952,6 @@ async function showBoardDetails(id) {
 
 // ============ STANDS ============
 
-// Вспомогательная функция для заполнения выпадающего списка
 function populateStandDatalist(listId, items, valueKey) {
     const datalist = document.getElementById(listId);
     if (!datalist) return;
@@ -994,7 +997,6 @@ function renderStandVisual() {
             <div class="stand-result" id="standResult"></div>
         </div>`;
 
-    // Загружаем список при фокусе
     const input = document.getElementById('visualSn');
     if (input) {
         input.addEventListener('focus', async function() {
@@ -1117,7 +1119,8 @@ function renderStandAssembly() {
                 </div>
                 <div class="stand-input-group">
                     <label>Серийный номер КОРПУСА</label>
-                    <input type="text" id="asmCase" class="stand-qr-input" placeholder="Сканируйте корпус..." autocomplete="off" onkeydown="handleScannerKey(event)">
+                    <input type="text" id="asmCase" class="stand-qr-input" list="cases-list" placeholder="Сканируйте или выберите..." autocomplete="off" onkeydown="handleScannerKey(event)">
+                    <datalist id="cases-list"></datalist>
                 </div>
                 <div class="stand-input-group">
                     <label>Серийный номер ИЗДЕЛИЯ</label>
@@ -1142,6 +1145,19 @@ function renderStandAssembly() {
             }
         });
         input.focus();
+    }
+
+    // Загрузка списка корпусов
+    const caseInput = document.getElementById('asmCase');
+    if (caseInput) {
+        caseInput.addEventListener('focus', async function() {
+            try {
+                const cases = await api('/api/cases');
+                populateStandDatalist('cases-list', cases, 'serial_number');
+            } catch (e) {
+                console.error('Ошибка загрузки корпусов:', e);
+            }
+        });
     }
 }
 
@@ -1293,18 +1309,25 @@ async function submitPackaging() {
         });
         showStandResult('Упаковка завершена!', 'success');
         
+        // Скачивание основной наклейки
         if (r.sticker_url) {
             const link = document.createElement('a');
             link.href = r.sticker_url;
-            link.download = 'sticker_' + sn + '.pdf';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            link.download = 'sticker_box_' + sn + '.pdf';
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
         
+        // Скачивание наклейки для паспорта
+        if (r.passport_sticker_url) {
+            const link = document.createElement('a');
+            link.href = r.passport_sticker_url;
+            link.download = 'sticker_passport_' + sn + '.pdf';
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            toast('Наклейка для паспорта сохранена', 'success');
+        }
+
         document.getElementById('packSn').value = '';
         document.getElementById('packSn').focus();
-        toast('Упаковка завершена', 'success');
     } catch (e) { 
         showStandResult(e.message, 'error'); 
     }
@@ -2485,4 +2508,126 @@ async function changePassword(event) {
     } catch (e) {
         showError(e.message);
     }
+}
+
+// ==========================================
+// КОРПУСА (CASES)
+// ==========================================
+async function loadCases() {
+    const content = document.getElementById('contentArea');
+    if (!content) return;
+    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Загрузка корпусов...</p></div>';
+    try {
+        const cases = await api('/api/cases');
+        S.cases = cases || [];
+        S.filteredCases = S.cases.slice();
+        renderCasesPage();
+    } catch (e) {
+        content.innerHTML = `<div class="empty-state"><p>Ошибка: ${e.message}</p></div>`;
+    }
+}
+
+function renderCasesPage() {
+    const content = document.getElementById('contentArea');
+    if (!content) return;
+    const canEditFlag = S.user && S.user.role !== 'operator';
+    
+    let html = `
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-info"><span class="stat-value">${S.cases.length}</span><span class="stat-label">Всего корпусов</span></div></div>
+        </div>
+        <div class="action-panel">
+            <div class="search-input-wrap" style="flex:1;max-width:400px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" class="search-input" placeholder="Поиск..." oninput="filterCases(this.value)" id="caseSearch">
+            </div>
+            ${canEditFlag ? '<button class="btn btn-primary" onclick="showAddCase()">+ Добавить корпус</button>' : ''}
+        </div>
+        <div class="table-card">
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead><tr><th>Серийный номер</th><th>Тип</th><th>Статус</th>${canEditFlag ? '<th>Действия</th>' : ''}</tr></thead>
+                    <tbody id="casesBody"></tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    content.innerHTML = html;
+    renderCasesRows();
+}
+
+function renderCasesRows() {
+    const tbody = document.getElementById('casesBody');
+    if (!tbody) return;
+    const cases = S.filteredCases;
+    if (!cases.length) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;">Нет данных<\/td><\/tr>';
+        return;
+    }
+    let html = '';
+    cases.forEach(c => {
+        html += `
+            <tr>
+                <td><strong>${escapeHtml(c.serial_number)}</strong></td>
+                <td><span class="badge badge-neutral">${escapeHtml(c.case_type || '—')}</span></td>
+                <td><span class="badge badge-info">На складе</span></td>
+                <td class="cell-actions">
+                    <button class="btn-icon danger" onclick="deleteCase(${c.id})" title="Удалить">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </td>
+            </tr>`;
+    });
+    tbody.innerHTML = html;
+}
+
+function filterCases(val) {
+    const search = (val || '').toLowerCase();
+    S.filteredCases = S.cases.filter(c => 
+        (c.serial_number || '').toLowerCase().includes(search) || 
+        (c.case_type || '').toLowerCase().includes(search)
+    );
+    renderCasesRows();
+}
+
+function showAddCase() {
+    openModal('Новый корпус', `
+        <form onsubmit="saveCase(event)">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Серийный номер *</label>
+                    <input class="form-input" name="serial_number" required placeholder="CASE-RS-2024-001">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Тип корпуса</label>
+                    <input class="form-input" name="case_type" placeholder="Например: RS-корпус">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary">Создать</button>
+            </div>
+        </form>
+    `);
+}
+
+async function saveCase(event) {
+    event.preventDefault();
+    const fd = new FormData(event.target);
+    const data = { serial_number: fd.get('serial_number'), case_type: fd.get('case_type') };
+    try {
+        await api('/api/cases', { method: 'POST', body: JSON.stringify(data) });
+        toast('Корпус создан', 'success');
+        closeModal();
+        loadCases();
+    } catch (e) { showError(e.message); }
+}
+
+async function deleteCase(id) {
+    if (!confirm('Удалить корпус?')) return;
+    try {
+        await api('/api/cases/' + id, { method: 'DELETE' });
+        toast('Корпус удален', 'success');
+        loadCases();
+    } catch (e) { showError(e.message); }
 }

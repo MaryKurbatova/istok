@@ -505,3 +505,8 @@ SELECT 'БД создана!' as status;
 SELECT COUNT(*) as devices FROM devices;
 SELECT COUNT(*) as boards FROM boards;
 SELECT COUNT(*) as employees FROM employees;
+
+ALTER TABLE board_type ADD COLUMN compatible_with_device_code VARCHAR(10) NULL;
+
+UPDATE board_type SET compatible_with_device_code = 'RS' WHERE code IN ('MAIN', 'POWER', 'SCREEN');
+UPDATE board_type SET compatible_with_device_code = 'SA' WHERE code = 'ADAPTER';

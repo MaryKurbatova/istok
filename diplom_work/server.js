@@ -351,8 +351,6 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// ===== АВТОРИЗАЦИЯ ИНТЕГРАЦИЯ =====
-
 app.post('/login/integration', async (req, res) => {
     const { username, password } = req.body;
     
@@ -364,7 +362,6 @@ app.post('/login/integration', async (req, res) => {
         
         if (rows.length > 0) {
             const user = rows[0];
-            // Исключаем пароль из ответа (безопасность)
             delete user.password;
             
             res.json({
@@ -708,13 +705,11 @@ app.post('/api/stands/visual-inspection', auth, async (req, res) => {
     try {
         const { serial_number, result, comment } = req.body;
         
-        // Проверяем, существует ли плата
         let [boards] = await db.query('SELECT * FROM boards WHERE serial_number = ?', [serial_number]);
         let board;
         let isNewBoard = false;
         
         if (!boards.length) {
-            // Если плата не найдена, создаём новую с типом MAIN по умолчанию
             const [boardTypes] = await db.query('SELECT id FROM board_type WHERE code = ?', ['MAIN']);
             const boardTypeId = boardTypes.length ? boardTypes[0].id : 1;
             
@@ -807,7 +802,6 @@ app.post('/api/stands/diagnostics', auth, async (req, res) => {
     }
 });
 
-// ============ СТЕНД СБОРКИ С ПРОВЕРКОЙ СОВМЕСТИМОСТИ ============
 app.post('/api/stands/assembly', auth, async (req, res) => {
     try {
         const { board_serial_numbers, case_serial_number, device_serial_number, device_type_id } = req.body;
@@ -840,7 +834,6 @@ app.post('/api/stands/assembly', auth, async (req, res) => {
             }
         }
 
-        // ============ ПРОВЕРКА СОВМЕСТИМОСТИ ПЛАТ ============
         const [deviceTypes] = await db.query('SELECT code FROM device_type WHERE id = ?', [device_type_id || 1]);
         if (!deviceTypes.length) return res.status(400).json({ error: 'Неизвестный тип устройства' });
         const targetDeviceCode = deviceTypes[0].code;
@@ -852,7 +845,6 @@ app.post('/api/stands/assembly', auth, async (req, res) => {
                 });
             }
         }
-        // ========================================================
 
         const now = new Date();
         const dateStr = now.toISOString().split('T')[0];
@@ -932,9 +924,6 @@ app.post('/api/stands/psi', auth, async (req, res) => {
     }
 });
 
-// ==========================================
-// PACKAGING API С ГЕНЕРАЦИЕЙ НАКЛЕЕК
-// ==========================================
 app.post('/api/stands/packaging', auth, async (req, res) => {
     try {
         const { device_serial_number, comment } = req.body;
@@ -974,10 +963,7 @@ app.post('/api/stands/packaging', auth, async (req, res) => {
             const deviceType = device.type || "ISN41508T3";
             const article = await getDeviceArticle(deviceType);
             
-            // Наклейка на коробку (большая)
             stickerUrl = await generateSimpleStickerPDF(device_serial_number, deviceType, article);
-            
-            // Наклейка в паспорт (маленькая)
             passportStickerUrl = await generatePassportStickerPDF(device_serial_number, deviceType);
         } catch (e) {
             console.warn('⚠️ Наклейки не сгенерированы:', e.message);
@@ -1056,6 +1042,35 @@ app.get('/api/uboot', auth, async (req, res) => {
 app.get('/api/iso', auth, async (req, res) => {
     try { const [r] = await db.query('SELECT * FROM iso ORDER BY version_iso'); res.json(r); }
     catch (e) { res.status(500).json({ error: 'Ошибка' }); }
+});
+
+// ==========================================
+// CASES API (КОРПУСА)
+// ==========================================
+app.get('/api/cases', auth, async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT * FROM cases ORDER BY id DESC');
+        res.json(rows);
+    } catch (e) { res.status(500).json({ error: 'Ошибка получения корпусов' }); }
+});
+
+app.post('/api/cases', auth, canEdit, async (req, res) => {
+    try {
+        const { serial_number, case_type } = req.body;
+        if (!serial_number) throw new Error('Серийный номер обязателен');
+        const [result] = await db.query(
+            'INSERT INTO cases (serial_number, case_type) VALUES (?, ?)', 
+            [serial_number, case_type || 'Стандартный']
+        );
+        res.json({ id: result.insertId, message: 'Корпус создан' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/cases/:id', auth, canDelete, async (req, res) => {
+    try {
+        await db.query('DELETE FROM cases WHERE id = ?', [req.params.id]);
+        res.json({ message: 'Корпус удален' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ==========================================
