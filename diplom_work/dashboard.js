@@ -889,17 +889,10 @@ async function deleteBoard(id) {
 }
 
 function showAddBoard() {
-    var typeOpts = '';
-    for (var i = 0; i < S.boardTypes.length; i++) {
-        var t = S.boardTypes[i];
-        typeOpts += '<option value="' + t.id + '">' + escapeHtml(t.name) + ' (' + t.code + ')</option>';
-    }
-
     openModal('Новая плата',
         '<form onsubmit="saveBoard(event)">' +
         '<div class="form-grid">' +
-        '<div class="form-group"><label class="form-label">Тип *</label><select class="form-select" name="board_type_id" required><option value="">Выберите</option>' + typeOpts + '</select></div>' +
-        '<div class="form-group"><label class="form-label">Серийный номер *</label><input class="form-input" name="serial_number" required placeholder="MB-RS-2024-XXX"></div>' +
+        '<div class="form-group"><label class="form-label">Серийный номер *</label><input class="form-input" name="serial_number" required placeholder="MB-RS-2025-001"></div>' +
         '</div>' +
         '<div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button><button type="submit" class="btn btn-primary">Создать</button></div>' +
         '</form>'
@@ -909,11 +902,35 @@ function showAddBoard() {
 async function saveBoard(event) {
     event.preventDefault();
     var fd = new FormData(event.target);
-    var data = {};
-    fd.forEach(function (v, k) { data[k] = v; });
-
+    var serial_number = fd.get('serial_number');
+    
+    // Получаем ID типа платы MAIN (код = 'MAIN')
+    let mainBoardTypeId = null;
+    for (var i = 0; i < S.boardTypes.length; i++) {
+        if (S.boardTypes[i].code === 'MAIN') {
+            mainBoardTypeId = S.boardTypes[i].id;
+            break;
+        }
+    }
+    
+    // Если не нашли MAIN, берем первый доступный тип
+    if (!mainBoardTypeId && S.boardTypes.length > 0) {
+        mainBoardTypeId = S.boardTypes[0].id;
+    }
+    
+    if (!mainBoardTypeId) {
+        showError('Тип платы не найден в системе');
+        return;
+    }
+    
     try {
-        await api('/api/boards', { method: 'POST', body: JSON.stringify(data) });
+        await api('/api/boards', { 
+            method: 'POST', 
+            body: JSON.stringify({ 
+                board_type_id: mainBoardTypeId, 
+                serial_number: serial_number 
+            }) 
+        });
         toast('Плата создана', 'success');
         closeModal();
         loadBoards();
@@ -2725,7 +2742,12 @@ function renderCasesPage() {
         <div class="table-card">
             <div class="table-wrapper">
                 <table class="data-table">
-                    <thead><tr><th>Серийный номер</th><th>Тип</th><th>Статус</th>${canEditFlag ? '<th>Действия</th>' : ''}</thead>
+                    <thead>
+                        <th>Серийный номер</th>
+                        <th>Тип</th>
+                        <th>Статус</th>
+                        ${canEditFlag ? '<th>Действия</th>' : ''}
+                    </thead>
                     <tbody id="casesBody"></tbody>
                 </table>
             </div>
@@ -2733,6 +2755,22 @@ function renderCasesPage() {
     `;
     content.innerHTML = html;
     renderCasesRows();
+}
+
+function getCaseTypeFromSerial(serialNumber) {
+    if (!serialNumber) return 'Стандартный';
+    
+    const parts = serialNumber.split('-');
+    if (parts.length >= 2) {
+        const typeCode = parts[1].toUpperCase();
+        if (typeCode === 'RS') return 'RS-корпус';
+        if (typeCode === 'SA') return 'SA-корпус';
+    }
+    
+    if (serialNumber.toUpperCase().includes('RS')) return 'RS-корпус';
+    if (serialNumber.toUpperCase().includes('SA')) return 'SA-корпус';
+    
+    return 'Стандартный';
 }
 
 function renderCasesRows() {
@@ -2743,20 +2781,27 @@ function renderCasesRows() {
         tbody.innerHTML = '<td><td colspan="3" style="text-align:center;padding:20px;">Нет данных<\/td><\/tr>';
         return;
     }
+    const canEditFlag = S.user && S.user.role !== 'operator';
     let html = '';
-    cases.forEach(c => {
+    for (let i = 0; i < cases.length; i++) {
+        const c = cases[i];
+        const caseType = getCaseTypeFromSerial(c.serial_number);
         html += `
             <tr>
                 <td><strong>${escapeHtml(c.serial_number)}</strong></td>
-                <td><span class="badge badge-neutral">${escapeHtml(c.case_type || '—')}</span></td>
-                <td><span class="badge ${c.current_stage === 'used' ? 'badge-warning' : 'badge-success'}">${c.current_stage === 'used' ? 'Использован' : 'Доступен'}</span></td>
+                <td><span class="badge badge-neutral">${escapeHtml(caseType)}</span></td>
+                <td><span class="badge ${c.current_stage === 'used' ? 'badge-warning' : 'badge-success'}">${c.current_stage === 'used' ? 'Использован' : 'Доступен'}</span></td>`;
+        if (canEditFlag) {
+            html += `
                 <td class="cell-actions">
                     <button class="btn-icon danger" onclick="deleteCase(${c.id})" title="Удалить">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     </button>
                 </td>
-            </tr>`;
-    });
+            `;
+        }
+        html += `</tr>`;
+    }
     tbody.innerHTML = html;
 }
 
@@ -2764,7 +2809,7 @@ function filterCases(val) {
     const search = (val || '').toLowerCase();
     S.filteredCases = S.cases.filter(c => 
         (c.serial_number || '').toLowerCase().includes(search) || 
-        (c.case_type || '').toLowerCase().includes(search)
+        (getCaseTypeFromSerial(c.serial_number) || '').toLowerCase().includes(search)
     );
     renderCasesRows();
 }
@@ -2776,10 +2821,7 @@ function showAddCase() {
                 <div class="form-group">
                     <label class="form-label">Серийный номер *</label>
                     <input class="form-input" name="serial_number" required placeholder="CASE-RS-2024-001">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Тип корпуса</label>
-                    <input class="form-input" name="case_type" placeholder="Например: RS-корпус">
+                    <small style="color: var(--text-muted); margin-top: 4px; display: block;">Тип корпуса определится автоматически (RS, SA)</small>
                 </div>
             </div>
             <div class="form-actions">
@@ -2793,16 +2835,30 @@ function showAddCase() {
 async function saveCase(event) {
     event.preventDefault();
     const fd = new FormData(event.target);
-    const data = { 
-        serial_number: fd.get('serial_number'), 
-        case_type: fd.get('case_type') 
-    };
+    const serial_number = fd.get('serial_number');
+    
+    // Определяем тип корпуса автоматически
+    let case_type = 'Стандартный';
+    if (serial_number.includes('-RS-') || serial_number.toUpperCase().startsWith('CASE-RS')) {
+        case_type = 'RS-корпус';
+    } else if (serial_number.includes('-SA-') || serial_number.toUpperCase().startsWith('CASE-SA')) {
+        case_type = 'SA-корпус';
+    }
+    
     try {
-        await api('/api/cases', { method: 'POST', body: JSON.stringify(data) });
+        await api('/api/cases', { 
+            method: 'POST', 
+            body: JSON.stringify({ 
+                serial_number: serial_number, 
+                case_type: case_type 
+            }) 
+        });
         toast('Корпус создан', 'success');
         closeModal();
         loadCases();
-    } catch (e) { showError(e.message); }
+    } catch (e) { 
+        showError(e.message); 
+    }
 }
 
 async function deleteCase(id) {
@@ -2811,5 +2867,7 @@ async function deleteCase(id) {
         await api('/api/cases/' + id, { method: 'DELETE' });
         toast('Корпус удалён', 'success');
         loadCases();
-    } catch (e) { showError(e.message); }
+    } catch (e) { 
+        showError(e.message); 
+    }
 }
