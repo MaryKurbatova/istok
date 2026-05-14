@@ -48,6 +48,44 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
+// Конфигурация устройств (обновлённая - только MAIN плата)
+const DEVICE_CONFIG = {
+    'RS': { name: 'Маршрутизатор (RS)', boards: ['MAIN'], type: 'ISN41508T3', os: 'RouterOS 6.4' },
+    'SA': { name: 'Коммутатор (SA)', boards: ['MAIN'], type: 'ISN41508T4', os: 'SwitchOS 4.0' }
+};
+
+// Вспомогательная функция для получения номера недели
+function getWeekNumber(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+// Функция генерации серийного номера
+async function generateDeviceSerialNumber(deviceTypeCode) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const week = getWeekNumber(now);
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    
+    const [rows] = await db.query(`
+        SELECT product_serial_number FROM devices 
+        WHERE product_serial_number LIKE ? 
+        ORDER BY id DESC LIMIT 1
+    `, [`${deviceTypeCode}${year}${String(week).padStart(2, '0')}${month}%`]);
+    
+    let sequence = 1;
+    if (rows.length > 0) {
+        const lastSN = rows[0].product_serial_number;
+        const lastSeq = parseInt(lastSN.slice(-3));
+        sequence = lastSeq + 1;
+    }
+    
+    return `${deviceTypeCode}${year}${String(week).padStart(2, '0')}${month}${String(sequence).padStart(3, '0')}`;
+}
+
 // Auth helpers
 function auth(req, res, next) {
     const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
@@ -71,7 +109,7 @@ function canDelete(req, res, next) {
     next();
 }
 
-// ============ ФУНКЦИЯ ГЕНЕРАЦИИ НАКЛЕЙКИ ============
+// ============ ФУНКЦИЯ ГЕНЕРАЦИИ НАКЛЕЙКИ НА КОРОБКУ ============
 async function generateSimpleStickerPDF(serialNumber, modification = "ISN41508T3", article = "КРПГ.465614.001") {
     return new Promise(async (resolve, reject) => {
         let qrImagePath = null;
@@ -90,7 +128,7 @@ async function generateSimpleStickerPDF(serialNumber, modification = "ISN41508T3
             if (fs.existsSync(fontRegularPath)) {
                 doc.registerFont('CustomRegular', fontRegularPath);
                 regularFont = 'CustomRegular';
-                console.log('✅ Шрифт загружен');
+                console.log('Шрифт загружен');
             }
 
             doc.rect(2, 2, doc.page.width - 4, doc.page.height - 4)
@@ -192,44 +230,39 @@ async function generateSimpleStickerPDF(serialNumber, modification = "ISN41508T3
     });
 }
 
-// Генерация маленькой наклейки для паспорта
+// Генерация маленькой наклейки для паспорта (ТОЛЬКО QR КОД)
 async function generatePassportStickerPDF(serialNumber, modification = "ISN41508T3") {
     return new Promise(async (resolve, reject) => {
         let qrImagePath = null;
         try {
             const pdfPath = path.join(__dirname, 'stikers', `${serialNumber}-passport-sticker.pdf`);
+            
             const doc = new PDFDocument({
-                size: [80, 40],
+                size: [60, 60],
                 margin: 0
             });
+            
             const stream = fs.createWriteStream(pdfPath);
             doc.pipe(stream);
-
-            doc.rect(1, 1, doc.page.width - 2, doc.page.height - 2)
-               .lineWidth(0.3)
-               .stroke();
-
-            doc.fontSize(8)
-               .fillColor('#e03131')
-               .text('ИСТОК', 0, 3, { width: 80, align: 'center' });
-
-            doc.fillColor('black')
-               .fontSize(6)
-               .text(`SN: ${serialNumber}`, 0, 14, { width: 80, align: 'center' });
-
-            doc.fontSize(5)
-               .text(modification, 0, 23, { width: 80, align: 'center' });
 
             try {
                 const qrBuffer = await QRCode.toBuffer(serialNumber, {
                     errorCorrectionLevel: 'M',
                     margin: 0,
-                    width: 100
+                    width: 300
                 });
 
                 qrImagePath = path.join(__dirname, 'stikers', `temp_qr_pass_${Date.now()}.png`);
                 fs.writeFileSync(qrImagePath, qrBuffer);
-                doc.image(qrImagePath, 58, 4, { width: 18, height: 18 });
+                
+                doc.image(qrImagePath, 0, 0, { 
+                    width: 60, 
+                    height: 60,
+                    fit: [60, 60],
+                    align: 'center',
+                    valign: 'center'
+                });
+                
             } catch (qrErr) {
                 console.warn('QR не сгенерирован:', qrErr.message);
             }
@@ -392,6 +425,26 @@ app.post('/api/logout', auth, (req, res) => {
     const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
     sessions.delete(token);
     res.json({ success: true });
+});
+
+// ==========================================
+// GENERATE SERIAL NUMBER API
+// ==========================================
+app.post('/api/generate-serial-number', auth, async (req, res) => {
+    try {
+        const { device_type_id } = req.body;
+        const [types] = await db.query('SELECT code FROM device_type WHERE id = ?', [device_type_id]);
+        
+        if (!types.length) {
+            return res.status(400).json({ error: 'Тип устройства не найден' });
+        }
+        
+        const serialNumber = await generateDeviceSerialNumber(types[0].code);
+        res.json({ serial_number: serialNumber });
+    } catch (e) {
+        console.error('Generate serial number error:', e);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // ==========================================
@@ -802,20 +855,21 @@ app.post('/api/stands/diagnostics', auth, async (req, res) => {
     }
 });
 
+// ОБНОВЛЕННЫЙ СТЕНД СБОРКИ - только MAIN плата, автоподстановка модификации и ОС
 app.post('/api/stands/assembly', auth, async (req, res) => {
     try {
         const { board_serial_numbers, case_serial_number, device_serial_number, device_type_id } = req.body;
-
+        
         if (!board_serial_numbers || !board_serial_numbers.length) {
-            return res.status(400).json({ error: 'Укажите серийные номера плат' });
+            return res.status(400).json({ error: 'Укажите серийный номер платы' });
         }
 
         const placeholders = board_serial_numbers.map(() => '?').join(',');
         const [boards] = await db.query(
-            `SELECT b.*, bt.name as board_type_name, bt.code as board_type_code, bt.compatible_with_device_code 
+            `SELECT b.*, bt.name as board_type_name, bt.code as board_type_code 
              FROM boards b 
              LEFT JOIN board_type bt ON b.board_type_id = bt.id 
-             WHERE b.serial_number IN (` + placeholders + `)`,
+             WHERE b.serial_number IN (${placeholders})`,
             board_serial_numbers
         );
 
@@ -825,6 +879,14 @@ app.post('/api/stands/assembly', auth, async (req, res) => {
             return res.status(404).json({ error: 'Не найдены: ' + missing.join(', ') });
         }
 
+        const [deviceTypes] = await db.query('SELECT code FROM device_type WHERE id = ?', [device_type_id || 1]);
+        if (!deviceTypes.length) return res.status(400).json({ error: 'Неизвестный тип устройства' });
+        
+        const deviceCode = deviceTypes[0].code;
+        const config = DEVICE_CONFIG[deviceCode];
+        if (!config) return res.status(400).json({ error: 'Неизвестный тип устройства' });
+
+        // Проверяем стадию плат
         for (const board of boards) {
             if (!board.diagnostics_passed) {
                 return res.status(400).json({ error: board.serial_number + ' не прошла диагностику!' });
@@ -834,31 +896,33 @@ app.post('/api/stands/assembly', auth, async (req, res) => {
             }
         }
 
-        const [deviceTypes] = await db.query('SELECT code FROM device_type WHERE id = ?', [device_type_id || 1]);
-        if (!deviceTypes.length) return res.status(400).json({ error: 'Неизвестный тип устройства' });
-        const targetDeviceCode = deviceTypes[0].code;
-
-        for (const board of boards) {
-            if (board.compatible_with_device_code && board.compatible_with_device_code !== targetDeviceCode) {
-                return res.status(400).json({ 
-                    error: `Плата ${board.serial_number} (${board.board_type_name || '?'}) предназначена для устройств типа ${board.compatible_with_device_code}, а вы собираете ${targetDeviceCode}.` 
-                });
-            }
+        // Проверяем комплектацию - только MAIN
+        const boardCodes = boards.map(b => b.board_type_code);
+        const missingBoards = config.boards.filter(type => !boardCodes.includes(type));
+        
+        if (missingBoards.length > 0) {
+            return res.status(400).json({ 
+                error: `Для сборки требуется плата: ${config.boards.join(', ')}` 
+            });
         }
 
         const now = new Date();
         const dateStr = now.toISOString().split('T')[0];
 
+        // АВТОПОДСТАНОВКА МОДИФИКАЦИИ И ОС ИЗ КОНФИГА
         const [devResult] = await db.query(
-            "INSERT INTO devices (device_type_id, product_serial_number, case_serial_number, assembly_passed, assembly_date, assembly_employee_id, current_stage, manufactures_date) VALUES (?, ?, ?, 1, ?, ?, 'assembled', ?)",
-            [device_type_id || 1, device_serial_number, case_serial_number, now, req.user.id, dateStr]
+            `INSERT INTO devices (device_type_id, product_serial_number, case_serial_number, type, version_os, 
+                assembly_passed, assembly_date, assembly_employee_id, current_stage, manufactures_date)
+             VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'assembled', ?)`,
+            [device_type_id || 1, device_serial_number, case_serial_number, config.type, config.os, now, req.user.id, dateStr]
         );
 
         const deviceId = devResult.insertId;
 
         for (const board of boards) {
             await db.query(
-                "UPDATE boards SET device_id = ?, assembly_passed = 1, assembly_date = ?, assembly_employee_id = ?, current_stage = 'assembled' WHERE id = ?",
+                `UPDATE boards SET device_id = ?, assembly_passed = 1, assembly_date = ?, 
+                 assembly_employee_id = ?, current_stage = 'assembled' WHERE id = ?`,
                 [deviceId, now, req.user.id, board.id]
             );
         }
@@ -873,7 +937,7 @@ app.post('/api/stands/assembly', auth, async (req, res) => {
             [deviceId, device_serial_number, 'Устройство собрано', 'assembly', req.user.id, now]
         );
 
-        res.json({ message: 'Сборка завершена', device_id: deviceId });
+        res.json({ message: 'Сборка завершена', device_id: deviceId, serial_number: device_serial_number });
     } catch (e) {
         console.error('Assembly error:', e);
         res.status(500).json({ error: e.message });
@@ -966,7 +1030,7 @@ app.post('/api/stands/packaging', auth, async (req, res) => {
             stickerUrl = await generateSimpleStickerPDF(device_serial_number, deviceType, article);
             passportStickerUrl = await generatePassportStickerPDF(device_serial_number, deviceType);
         } catch (e) {
-            console.warn('⚠️ Наклейки не сгенерированы:', e.message);
+            console.warn('Наклейки не сгенерированы:', e.message);
         }
 
         res.json({
@@ -1051,26 +1115,44 @@ app.get('/api/cases', auth, async (req, res) => {
     try {
         const [rows] = await db.query('SELECT * FROM cases ORDER BY id DESC');
         res.json(rows);
-    } catch (e) { res.status(500).json({ error: 'Ошибка получения корпусов' }); }
+    } catch (e) { 
+        console.error('GET /api/cases error:', e);
+        res.status(500).json({ error: 'Ошибка получения корпусов: ' + e.message }); 
+    }
 });
 
 app.post('/api/cases', auth, canEdit, async (req, res) => {
     try {
         const { serial_number, case_type } = req.body;
         if (!serial_number) throw new Error('Серийный номер обязателен');
+        
+        const [existing] = await db.query('SELECT id FROM cases WHERE serial_number = ?', [serial_number]);
+        if (existing.length > 0) {
+            return res.status(400).json({ error: 'Корпус с таким серийным номером уже существует' });
+        }
+        
         const [result] = await db.query(
-            'INSERT INTO cases (serial_number, case_type) VALUES (?, ?)', 
-            [serial_number, case_type || 'Стандартный']
+            'INSERT INTO cases (serial_number, case_type, current_stage) VALUES (?, ?, ?)', 
+            [serial_number, case_type || 'Стандартный', 'new']
         );
         res.json({ id: result.insertId, message: 'Корпус создан' });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { 
+        console.error('POST /api/cases error:', e);
+        res.status(500).json({ error: e.message }); 
+    }
 });
 
 app.delete('/api/cases/:id', auth, canDelete, async (req, res) => {
     try {
-        await db.query('DELETE FROM cases WHERE id = ?', [req.params.id]);
+        const [result] = await db.query('DELETE FROM cases WHERE id = ?', [req.params.id]);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Корпус не найден' });
+        }
         res.json({ message: 'Корпус удален' });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { 
+        console.error('DELETE /api/cases/:id error:', e);
+        res.status(500).json({ error: e.message }); 
+    }
 });
 
 // ==========================================

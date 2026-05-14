@@ -440,6 +440,26 @@ function getPlaceIcon(name) {
     return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>`;
 }
 
+function populateStandDatalist(listId, items, valueKey) {
+    const datalist = document.getElementById(listId);
+    if (!datalist) return;
+    
+    datalist.innerHTML = '';
+    items.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item[valueKey];
+        datalist.appendChild(option);
+    });
+}
+
+function showStandResult(msg, type = 'success') {
+    const el = document.getElementById('standResult');
+    if (el) {
+        el.className = 'stand-result ' + type;
+        el.innerHTML = '<h4>' + msg + '</h4>';
+    }
+}
+
 // ============ DEVICES ============
 async function loadDevices() {
     var content = document.getElementById('contentArea');
@@ -794,7 +814,7 @@ async function loadBoards() {
         html += '<div class="table-card"><div class="table-wrapper"><table class="data-table"><thead>';
         html += '<th>Серийный номер</th><th>Тип</th><th>Стадия</th><th>Устройство</th><th>Осмотр</th><th>Диагностика</th>';
         if (canEditFlag) html += '<th>Действия</th>';
-        html += '</thead><tbody id="boardsBody"></tbody></table></div></div>';
+        html += '</thead><tbody id="boardsBody"></tbody><table></div></div>';
 
         content.innerHTML = html;
         applyBoardFilters();
@@ -814,18 +834,13 @@ function applyBoardFilters() {
             (b.device_serial || '').toLowerCase().indexOf(searchVal) !== -1;
 
         if (!matchSearch) return false;
-
         if (typeFilter === 'all') return true;
 
-        const name = (b.board_type_name || '').toUpperCase();
-        const dev = (b.device_serial || '').toUpperCase();
+        const parts = (b.serial_number || '').split('-');
+        const codePart = parts.length > 1 ? parts[1].toUpperCase() : '';
 
-        const isRouter = name.indexOf('RS') !== -1 || dev.indexOf('RS') === 0;
-        const isSwitch = name.indexOf('SA') !== -1 || dev.indexOf('SA') === 0;
-
-        if (typeFilter === 'router') return isRouter;
-        if (typeFilter === 'switch') return isSwitch;
-
+        if (typeFilter === 'router') return codePart === 'RS';
+        if (typeFilter === 'switch') return codePart === 'SA';
         return true;
     });
 
@@ -838,7 +853,7 @@ function renderBoardRows() {
     tbody.innerHTML = '';
 
     if (S.filteredBoards.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-muted);">Платы не найдены</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-muted);">Платы не найдены<\/td><\/tr>';
         return;
     }
 
@@ -847,7 +862,7 @@ function renderBoardRows() {
 
     for (var i = 0; i < S.filteredBoards.length; i++) {
         var b = S.filteredBoards[i];
-        html += '</tr>';
+        html += '<tr>';
         html += '<td><strong style="color:var(--primary);cursor:pointer" onclick="showBoardDetails(' + b.id + ')">' + escapeHtml(b.serial_number) + '</strong></td>';
         html += '<td><span class="badge badge-neutral">' + escapeHtml(b.board_type_name || '—') + '</span></td>';
         html += '<td><span class="badge ' + stageBadge(b.current_stage) + '">' + stageLabel(b.current_stage) + '</span></td>';
@@ -952,26 +967,6 @@ async function showBoardDetails(id) {
 
 // ============ STANDS ============
 
-function populateStandDatalist(listId, items, valueKey) {
-    const datalist = document.getElementById(listId);
-    if (!datalist) return;
-    
-    datalist.innerHTML = '';
-    items.forEach(item => {
-        const option = document.createElement('option');
-        option.value = item[valueKey];
-        datalist.appendChild(option);
-    });
-}
-
-function showStandResult(msg, type = 'success') {
-    const el = document.getElementById('standResult');
-    if (el) {
-        el.className = 'stand-result ' + type;
-        el.innerHTML = '<h4>' + (type === 'success' ? '✓ ' : '✗ ') + msg + '</h4>';
-    }
-}
-
 // 1. Визуальный осмотр
 function renderStandVisual() {
     const contentArea = document.getElementById('contentArea');
@@ -1015,7 +1010,7 @@ function renderStandVisual() {
 async function submitVisual(result) {
     const sn = document.getElementById('visualSn')?.value.trim();
     if (!sn) return showStandResult('Введите серийный номер', 'error');
-    showStandResult('⏳ Проверка...', 'info');
+    showStandResult('Проверка...', 'info');
     try {
         await api('/api/stands/visual-inspection', {
             method: 'POST',
@@ -1074,7 +1069,7 @@ function renderStandDiag() {
 async function submitDiag(result) {
     const sn = document.getElementById('diagSn')?.value.trim();
     if (!sn) return showStandResult('Введите серийный номер', 'error');
-    showStandResult('⏳ Запуск тестов...', 'info');
+    showStandResult('Запуск тестов...', 'info');
     try {
         await api('/api/stands/diagnostics', {
             method: 'POST',
@@ -1100,7 +1095,10 @@ async function submitDiag(result) {
     }
 }
 
-// 3. Сборка
+// 3. Сборка - упрощённая версия (без выбора типа, без проверки комплекта)
+let scannedBoardsForAssembly = [];
+let scannedCaseForAssembly = null;
+
 function renderStandAssembly() {
     const contentArea = document.getElementById('contentArea');
     if (!contentArea) return;
@@ -1109,84 +1107,268 @@ function renderStandAssembly() {
         <div class="stand-workstation">
             <div class="stand-header">
                 <h2>Стенд сборки</h2>
-                <p class="stand-instruction">Выберите плату, прошедшую диагностику, и отсканируйте корпус/изделие.</p>
+                <p class="stand-instruction">
+                    Сканируйте плату MAIN (прошедшую диагностику). Серийный номер изделия сгенерируется автоматически.
+                    После сканирования платы и корпуса нажмите "Собрать устройство".
+                </p>
             </div>
+            
+            <div id="deviceTypeInfo" style="margin-bottom: 20px; padding: 12px; background: var(--bg-input); border-radius: 8px; text-align: center; display: none;">
+                <strong>Тип устройства:</strong> <span id="detectedDeviceType" style="color: var(--primary); font-weight: bold;">—</span>
+            </div>
+            
             <div class="stand-form">
                 <div class="stand-input-group">
-                    <label>Серийный номер ПЛАТЫ</label>
-                    <input type="text" id="asmBoard" class="stand-qr-input" list="asm-boards-list" placeholder="Нажмите для выбора..." autocomplete="off">
-                    <datalist id="asm-boards-list"></datalist>
+                    <label>Серийный номер ПЛАТЫ MAIN <span style="color: var(--text-muted); font-size: 12px;">(Enter для добавления)</span></label>
+                    <input type="text" id="asmBoard" class="stand-qr-input" 
+                           placeholder="Сканируйте плату MAIN..." autocomplete="off">
                 </div>
+                
                 <div class="stand-input-group">
                     <label>Серийный номер КОРПУСА</label>
-                    <input type="text" id="asmCase" class="stand-qr-input" list="cases-list" placeholder="Сканируйте или выберите..." autocomplete="off" onkeydown="handleScannerKey(event)">
-                    <datalist id="cases-list"></datalist>
+                    <input type="text" id="asmCase" class="stand-qr-input" 
+                           placeholder="Сканируйте корпус..." autocomplete="off">
                 </div>
+                
                 <div class="stand-input-group">
-                    <label>Серийный номер ИЗДЕЛИЯ</label>
-                    <input type="text" id="asmProduct" class="stand-qr-input" placeholder="Сканируйте изделие..." autocomplete="off" onkeydown="handleScannerKey(event)">
+                    <label>Серийный номер ИЗДЕЛИЯ <span style="color: var(--text-muted); font-size: 12px;">(автогенерация)</span></label>
+                    <input type="text" id="asmProduct" class="stand-qr-input" 
+                           placeholder="Будет сгенерирован автоматически" 
+                           readonly style="background: var(--bg-hover); font-weight: bold; color: var(--primary);">
                 </div>
+                
                 <div class="stand-actions">
-                    <button onclick="submitAssembly()" class="btn-stand btn-primary-stand">Собрать устройство</button>
+                    <button onclick="submitAssembly()" class="btn-stand btn-primary-stand" 
+                            id="assembleBtn" disabled>
+                        Собрать устройство
+                    </button>
+                    <button onclick="clearAssembly()" class="btn-stand btn-secondary">
+                        Очистить
+                    </button>
                 </div>
             </div>
+            
+            <div id="scannedBoardsList" style="margin-top: 20px;"></div>
             <div class="stand-result" id="standResult"></div>
         </div>`;
-
+    
+    scannedBoardsForAssembly = [];
+    scannedCaseForAssembly = null;
+    
     const input = document.getElementById('asmBoard');
     if (input) {
-        input.addEventListener('focus', async function() {
-            try {
-                const boards = await api('/api/boards');
-                const availableBoards = boards.filter(b => b.current_stage === 'diagnostics_ok');
-                populateStandDatalist('asm-boards-list', availableBoards, 'serial_number');
-            } catch (e) {
-                console.error('Ошибка загрузки плат:', e);
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addBoardToAssembly(this.value.trim());
+                this.value = '';
             }
         });
         input.focus();
     }
-
-    // Загрузка списка корпусов
+    
     const caseInput = document.getElementById('asmCase');
     if (caseInput) {
-        caseInput.addEventListener('focus', async function() {
-            try {
-                const cases = await api('/api/cases');
-                populateStandDatalist('cases-list', cases, 'serial_number');
-            } catch (e) {
-                console.error('Ошибка загрузки корпусов:', e);
-            }
+        caseInput.addEventListener('input', function() {
+            scannedCaseForAssembly = this.value.trim();
+            updateAssemblyUI();
         });
     }
 }
 
+async function addBoardToAssembly(serialNumber) {
+    if (!serialNumber) return;
+    
+    if (scannedBoardsForAssembly.length > 0) {
+        showStandResult('Можно добавить только одну плату MAIN', 'error');
+        return;
+    }
+    
+    try {
+        const boards = await api('/api/boards');
+        const board = boards.find(b => b.serial_number === serialNumber);
+        
+        if (!board) {
+            showStandResult('Плата не найдена', 'error');
+            return;
+        }
+        
+        if (board.current_stage !== 'diagnostics_ok') {
+            showStandResult('Плата не прошла диагностику (стадия: ' + board.current_stage + ')', 'error');
+            return;
+        }
+        
+        if (board.board_type_code !== 'MAIN') {
+            showStandResult('Разрешена только плата MAIN', 'error');
+            return;
+        }
+        
+        // Определяем тип устройства по серийному номеру платы
+        let deviceType = null;
+        let deviceTypeId = null;
+        
+        if (board.serial_number.includes('-RS-') || board.serial_number.startsWith('MB-RS')) {
+            deviceType = 'RS';
+            deviceTypeId = 1;
+        } else if (board.serial_number.includes('-SA-') || board.serial_number.startsWith('MB-SA')) {
+            deviceType = 'SA';
+            deviceTypeId = 2;
+        } else {
+            showStandResult('Не удалось определить тип устройства по плате ' + serialNumber, 'error');
+            return;
+        }
+        
+        scannedBoardsForAssembly.push({
+            serial_number: board.serial_number,
+            type: board.board_type_code,
+            name: board.board_type_name,
+            device_type: deviceType,
+            device_type_id: deviceTypeId
+        });
+        
+        // Показываем информацию об определённом типе
+        const typeInfo = document.getElementById('deviceTypeInfo');
+        const typeSpan = document.getElementById('detectedDeviceType');
+        if (typeInfo && typeSpan) {
+            typeSpan.textContent = deviceType === 'RS' ? 'Маршрутизатор (RS)' : 'Коммутатор (SA)';
+            typeInfo.style.display = 'block';
+        }
+        
+        // Генерируем серийный номер
+        await generateSerialNumberForAssembly(deviceTypeId);
+        
+        updateAssemblyUI();
+        showStandResult('Добавлена плата MAIN (' + board.serial_number + ') - тип ' + deviceType, 'success');
+        
+    } catch (e) {
+        showStandResult(e.message, 'error');
+    }
+}
+
+async function generateSerialNumberForAssembly(deviceTypeId) {
+    if (!deviceTypeId) return;
+    
+    try {
+        const response = await fetch('/api/generate-serial-number', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + S.token
+            },
+            body: JSON.stringify({ device_type_id: deviceTypeId })
+        });
+        
+        const data = await response.json();
+        if (data.serial_number) {
+            document.getElementById('asmProduct').value = data.serial_number;
+            updateAssemblyUI();
+        }
+    } catch (e) {
+        console.error('Error generating serial number:', e);
+    }
+}
+
+function updateAssemblyUI() {
+    const listDiv = document.getElementById('scannedBoardsList');
+    if (scannedBoardsForAssembly.length > 0) {
+        listDiv.innerHTML = `
+            <div style="background: var(--bg-card); padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+                <h4 style="margin: 0 0 10px 0; color: var(--primary);">Отсканированная плата:</h4>
+                ${scannedBoardsForAssembly.map(b => `
+                    <div style="padding: 8px; margin: 5px 0; background: var(--bg-input); border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>${b.name}</strong> 
+                            <span style="color: var(--text-muted); font-family: monospace; margin-left: 10px;">${b.type}</span>
+                        </div>
+                        <div style="font-family: monospace; font-size: 12px; color: var(--text-secondary);">${b.serial_number}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    } else {
+        listDiv.innerHTML = '';
+    }
+    
+    const assembleBtn = document.getElementById('assembleBtn');
+    const caseInput = document.getElementById('asmCase');
+    const productInput = document.getElementById('asmProduct');
+    
+    const hasBoard = scannedBoardsForAssembly.length > 0;
+    const hasCase = caseInput && caseInput.value.trim();
+    const hasSerial = productInput && productInput.value;
+    
+    if (hasBoard && hasCase && hasSerial) {
+        assembleBtn.disabled = false;
+        assembleBtn.textContent = 'Собрать устройство';
+    } else {
+        assembleBtn.disabled = true;
+        let reason = [];
+        if (!hasBoard) reason.push('плата MAIN');
+        if (!hasCase) reason.push('корпус');
+        if (!hasSerial) reason.push('серийный номер');
+        assembleBtn.textContent = 'Собрать устройство (' + reason.join(', ') + ')';
+    }
+}
+
+function clearAssembly() {
+    scannedBoardsForAssembly = [];
+    scannedCaseForAssembly = null;
+    document.getElementById('asmBoard').value = '';
+    document.getElementById('asmCase').value = '';
+    document.getElementById('asmProduct').value = '';
+    document.getElementById('scannedBoardsList').innerHTML = '';
+    const typeInfo = document.getElementById('deviceTypeInfo');
+    if (typeInfo) typeInfo.style.display = 'none';
+    updateAssemblyUI();
+    showStandResult('', 'success');
+}
+
 async function submitAssembly() {
-    const boardSn = document.getElementById('asmBoard')?.value.trim();
     const caseSn = document.getElementById('asmCase')?.value.trim();
-    const prodSn = document.getElementById('asmProduct')?.value.trim();
-    if (!boardSn || !caseSn || !prodSn) return showStandResult('Заполните все поля', 'error');
-    showStandResult('⏳ Сборка...', 'info');
+    const productSn = document.getElementById('asmProduct')?.value.trim();
+    
+    if (scannedBoardsForAssembly.length === 0) {
+        showStandResult('Отсканируйте основную плату (MAIN)', 'error');
+        return;
+    }
+    
+    if (!caseSn) {
+        showStandResult('Отсканируйте корпус', 'error');
+        return;
+    }
+    
+    const board = scannedBoardsForAssembly[0];
+    const deviceTypeId = board.device_type_id;
+    
+    if (!deviceTypeId) {
+        showStandResult('Не удалось определить тип устройства', 'error');
+        return;
+    }
+    
+    showStandResult('Сборка устройства...', 'info');
+    
     try {
         const r = await api('/api/stands/assembly', {
             method: 'POST',
-            body: JSON.stringify({ 
-                board_serial_numbers: [boardSn], 
-                case_serial_number: caseSn, 
-                device_serial_number: prodSn, 
-                device_type_id: 1 
+            body: JSON.stringify({
+                board_serial_numbers: [board.serial_number],
+                case_serial_number: caseSn,
+                device_serial_number: productSn,
+                device_type_id: deviceTypeId
             })
         });
-        showStandResult('Устройство успешно собрано! (ID: ' + r.device_id + ')', 'success');
-        document.getElementById('asmBoard').value = '';
-        document.getElementById('asmCase').value = '';
-        document.getElementById('asmProduct').value = '';
-        document.getElementById('asmBoard').focus();
+        
+        showStandResult('Устройство ' + productSn + ' успешно собрано! ID: ' + r.device_id, 'success');
+        
+        setTimeout(() => {
+            clearAssembly();
+        }, 2000);
+        
         loadDevices();
         loadBoards();
-        toast('Сборка завершена', 'success');
-    } catch (e) { 
-        showStandResult(e.message, 'error'); 
+        
+    } catch (e) {
+        showStandResult(e.message, 'error');
     }
 }
 
@@ -1233,7 +1415,7 @@ function renderStandPSI() {
 async function submitPSI(result) {
     const sn = document.getElementById('psiSn')?.value.trim();
     if (!sn) return showStandResult('Введите серийный номер', 'error');
-    showStandResult('⏳ Прошивка и тестирование...', 'info');
+    showStandResult('Прошивка и тестирование...', 'info');
     try {
         await api('/api/stands/psi', {
             method: 'POST',
@@ -1301,7 +1483,7 @@ function renderStandPackaging() {
 async function submitPackaging() {
     const sn = document.getElementById('packSn')?.value.trim();
     if (!sn) return showStandResult('Введите серийный номер', 'error');
-    showStandResult('⏳ Упаковка и генерация документов...', 'info');
+    showStandResult('Упаковка и генерация документов...', 'info');
     try {
         const r = await api('/api/stands/packaging', {
             method: 'POST',
@@ -1309,7 +1491,6 @@ async function submitPackaging() {
         });
         showStandResult('Упаковка завершена!', 'success');
         
-        // Скачивание основной наклейки
         if (r.sticker_url) {
             const link = document.createElement('a');
             link.href = r.sticker_url;
@@ -1317,7 +1498,6 @@ async function submitPackaging() {
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
         
-        // Скачивание наклейки для паспорта
         if (r.passport_sticker_url) {
             const link = document.createElement('a');
             link.href = r.passport_sticker_url;
@@ -1328,6 +1508,7 @@ async function submitPackaging() {
 
         document.getElementById('packSn').value = '';
         document.getElementById('packSn').focus();
+        toast('Упаковка завершена', 'success');
     } catch (e) { 
         showStandResult(e.message, 'error'); 
     }
@@ -2125,7 +2306,7 @@ async function loadStatistics() {
                                         </tr>
                                     `).join('')}
                                 </tbody>
-                            </table>
+                            <table>
                         ` : '<p style="color:var(--text-muted);text-align:center;padding:20px;">Нет данных</p>'}
                     </div>
                 </div>
@@ -2510,9 +2691,7 @@ async function changePassword(event) {
     }
 }
 
-// ==========================================
-// КОРПУСА (CASES)
-// ==========================================
+// ============ CASES (КОРПУСА) ============
 async function loadCases() {
     const content = document.getElementById('contentArea');
     if (!content) return;
@@ -2523,7 +2702,7 @@ async function loadCases() {
         S.filteredCases = S.cases.slice();
         renderCasesPage();
     } catch (e) {
-        content.innerHTML = `<div class="empty-state"><p>Ошибка: ${e.message}</p></div>`;
+        content.innerHTML = `<div class="empty-state"><p>Ошибка загрузки корпусов: ${e.message}</p></div>`;
     }
 }
 
@@ -2546,7 +2725,7 @@ function renderCasesPage() {
         <div class="table-card">
             <div class="table-wrapper">
                 <table class="data-table">
-                    <thead><tr><th>Серийный номер</th><th>Тип</th><th>Статус</th>${canEditFlag ? '<th>Действия</th>' : ''}</tr></thead>
+                    <thead><tr><th>Серийный номер</th><th>Тип</th><th>Статус</th>${canEditFlag ? '<th>Действия</th>' : ''}</thead>
                     <tbody id="casesBody"></tbody>
                 </table>
             </div>
@@ -2561,7 +2740,7 @@ function renderCasesRows() {
     if (!tbody) return;
     const cases = S.filteredCases;
     if (!cases.length) {
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;">Нет данных<\/td><\/tr>';
+        tbody.innerHTML = '<td><td colspan="3" style="text-align:center;padding:20px;">Нет данных<\/td><\/tr>';
         return;
     }
     let html = '';
@@ -2570,7 +2749,7 @@ function renderCasesRows() {
             <tr>
                 <td><strong>${escapeHtml(c.serial_number)}</strong></td>
                 <td><span class="badge badge-neutral">${escapeHtml(c.case_type || '—')}</span></td>
-                <td><span class="badge badge-info">На складе</span></td>
+                <td><span class="badge ${c.current_stage === 'used' ? 'badge-warning' : 'badge-success'}">${c.current_stage === 'used' ? 'Использован' : 'Доступен'}</span></td>
                 <td class="cell-actions">
                     <button class="btn-icon danger" onclick="deleteCase(${c.id})" title="Удалить">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -2614,7 +2793,10 @@ function showAddCase() {
 async function saveCase(event) {
     event.preventDefault();
     const fd = new FormData(event.target);
-    const data = { serial_number: fd.get('serial_number'), case_type: fd.get('case_type') };
+    const data = { 
+        serial_number: fd.get('serial_number'), 
+        case_type: fd.get('case_type') 
+    };
     try {
         await api('/api/cases', { method: 'POST', body: JSON.stringify(data) });
         toast('Корпус создан', 'success');
@@ -2627,7 +2809,7 @@ async function deleteCase(id) {
     if (!confirm('Удалить корпус?')) return;
     try {
         await api('/api/cases/' + id, { method: 'DELETE' });
-        toast('Корпус удален', 'success');
+        toast('Корпус удалён', 'success');
         loadCases();
     } catch (e) { showError(e.message); }
 }

@@ -506,7 +506,19 @@ SELECT COUNT(*) as devices FROM devices;
 SELECT COUNT(*) as boards FROM boards;
 SELECT COUNT(*) as employees FROM employees;
 
+
 ALTER TABLE board_type ADD COLUMN compatible_with_device_code VARCHAR(10) NULL;
 
 UPDATE board_type SET compatible_with_device_code = 'RS' WHERE code IN ('MAIN', 'POWER', 'SCREEN');
 UPDATE board_type SET compatible_with_device_code = 'SA' WHERE code = 'ADAPTER';
+
+
+
+-- Добавляем поле совместимости плат
+ALTER TABLE board_type ADD COLUMN compatible_with_device_code VARCHAR(50);
+
+-- Обновляем данные о совместимости
+UPDATE board_type SET compatible_with_device_code = 'RS,SA' WHERE code = 'MAIN';
+UPDATE board_type SET compatible_with_device_code = 'RS,SA' WHERE code = 'POWER';
+UPDATE board_type SET compatible_with_device_code = 'RS' WHERE code = 'ADAPTER';
+UPDATE board_type SET compatible_with_device_code = 'SA' WHERE code = 'SCREEN';
